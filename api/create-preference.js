@@ -225,17 +225,6 @@ module.exports = async function handler(req, res) {
       qrCodeBase64: transactionData.qr_code_base64 || null,
       ticketUrl: transactionData.ticket_url || null
     });
-    return send(res, 200, {
-      orderId,
-      orderType: 'pix',
-      orderIdMercadoPago: data.id,
-      paymentId: payment.id,
-      status: payment.status,
-      statusDetail: payment.status_detail,
-      qrCode: method.qr_code || null,
-      qrCodeBase64: method.qr_code_base64 || null,
-      ticketUrl: method.ticket_url || null
-    });
   } catch (error) {
     console.error('create-preference:', error);
     return send(res, 500, {

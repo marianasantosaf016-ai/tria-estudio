@@ -118,7 +118,7 @@ module.exports = async function handler(req, res) {
         total_amount: totalAmount.toFixed(2),
         external_reference: orderId,
         processing_mode: 'manual',
-        capture_mode: 'automatic',
+        capture_mode: 'automatic_async',
         payer: customer?.email
           ? { email: String(customer.email).trim() }
           : undefined,

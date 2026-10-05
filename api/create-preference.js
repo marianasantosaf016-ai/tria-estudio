@@ -156,28 +156,51 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    const totalAmount = checkoutItems.reduce(
+      (sum, item) => sum + (item.unit_price * item.quantity),
+      0
+    );
+
     const body = {
-      items: checkoutItems,
+      type: 'online',
+      total_amount: totalAmount.toFixed(2),
+      processing_mode: 'manual',
+      external_reference: orderId,
       payer,
-      payment_methods: {
-        installments: paymentMethod === 'card' ? 3 : 1,
-        excluded_payment_types: [{ id: 'ticket' }]
-      },
-      back_urls: {
-        success: `${siteUrl}/#/pagamento/sucesso`,
-        pending: `${siteUrl}/#/pagamento/pendente`,
-        failure: `${siteUrl}/#/pagamento/falhou`
-      },
-      auto_return: 'approved',
-      notification_url: `${siteUrl}/api/webhook`,
-      external_reference: orderId
+      items: checkoutItems.map(item => ({
+        title: item.title,
+        quantity: item.quantity,
+        unit_price: item.unit_price.toFixed(2),
+        total_amount: (item.unit_price * item.quantity).toFixed(2)
+      })),
+      config: {
+        online: {
+          success_url: `${siteUrl}/#/pagamento/sucesso`,
+          pending_url: `${siteUrl}/#/pagamento/pendente`,
+          failure_url: `${siteUrl}/#/pagamento/falhou`,
+          auto_return: 'approved'
+        },
+        payment_method: {
+          max_installments: 3,
+          default_type: 'credit_card',
+          installments_cost: 'seller',
+          not_allowed_types: ['ticket'],
+          installments: {
+            interest_free: {
+              type: 'range',
+              values: [1, 3]
+            }
+          }
+        }
+      }
     };
 
-    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
+    const response = await fetch('https://api.mercadopago.com/v1/orders', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'X-Idempotency-Key': crypto.randomUUID()
       },
       body: JSON.stringify(body)
     });
@@ -190,8 +213,8 @@ module.exports = async function handler(req, res) {
       data = { raw };
     }
 
-    if (!response.ok || !data.init_point) {
-      console.error('Mercado Pago Preferences API:', response.status, raw);
+    if (!response.ok || !data.checkout_url) {
+      console.error('Mercado Pago Orders API:', response.status, raw);
       const detail = data?.message ||
         data?.error ||
         data?.details ||
@@ -201,7 +224,7 @@ module.exports = async function handler(req, res) {
         `HTTP ${response.status}`;
 
       return send(res, 502, {
-        error: 'O Mercado Pago não conseguiu criar o checkout.',
+        error: 'O Mercado Pago não conseguiu criar o checkout via Orders API.',
         details: typeof detail === 'string' ? detail : JSON.stringify(detail)
       });
     }
@@ -209,9 +232,9 @@ module.exports = async function handler(req, res) {
     return send(res, 200, {
       orderId,
       orderType: 'checkout',
-      preferenceId: data.id,
-      init_point: data.init_point,
-      checkoutUrl: data.init_point
+      orderId: data.id,
+      orderType: 'checkout',
+      checkoutUrl: data.checkout_url
     });
   } catch (error) {
     console.error('create-preference:', error);

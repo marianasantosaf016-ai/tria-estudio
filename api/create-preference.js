@@ -11,51 +11,117 @@ const PRODUCTS = {
   'kit-coador': { name: 'Kit Coador', pix: 110, card: 120 }
 };
 
-function send(res, status, body) { return res.status(status).json(body); }
+function send(res, status, body) {
+  return res.status(status).json(body);
+}
+
+function mpError(data, raw, status) {
+  const cause = data?.cause;
+  const detail =
+    data?.message ||
+    data?.error ||
+    data?.details ||
+    (Array.isArray(cause) ? cause.map(x => x?.description || x?.code || JSON.stringify(x)).join(' | ') : cause) ||
+    data?.raw ||
+    `HTTP ${status}`;
+  return typeof detail === 'string' ? detail : JSON.stringify(detail);
+}
+
+async function callMercadoPago(token, body) {
+  const response = await fetch('https://api.mercadopago.com/v1/orders', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Idempotency-Key': crypto.randomUUID()
+    },
+    body: JSON.stringify(body)
+  });
+
+  const raw = await response.text();
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch (_) {
+    data = { raw };
+  }
+
+  return { response, data, raw };
+}
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
+  if (req.method !== 'POST') {
+    return send(res, 405, { error: 'Método não permitido.' });
+  }
 
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
-  if (!token) return send(res, 500, { error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no ambiente.' });
+  if (!token) {
+    return send(res, 500, { error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no ambiente.' });
+  }
 
   try {
     const { items, paymentMethod, customer } = req.body || {};
-    if (!Array.isArray(items) || !items.length) return send(res, 400, { error: 'Carrinho vazio.' });
-    if (!['pix', 'card'].includes(paymentMethod)) return send(res, 400, { error: 'Forma de pagamento inválida.' });
+
+    if (!Array.isArray(items) || !items.length) {
+      return send(res, 400, { error: 'Carrinho vazio.' });
+    }
+
+    if (!['pix', 'card'].includes(paymentMethod)) {
+      return send(res, 400, { error: 'Forma de pagamento inválida.' });
+    }
 
     const normalized = items.map(item => {
-      const p = PRODUCTS[item.id];
+      const product = PRODUCTS[item.id];
       const quantity = Number(item.quantity);
-      if (!p || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+
+      if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
         throw new Error('Produto ou quantidade inválida.');
       }
-      return { ...p, id: item.id, quantity };
+
+      return {
+        ...product,
+        id: item.id,
+        quantity
+      };
     });
 
     const siteUrl = (process.env.SITE_URL || `https://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/$/, '');
+
     if (!/^https:\/\//i.test(siteUrl)) {
       return send(res, 500, { error: 'Não foi possível identificar a URL pública do site.' });
     }
 
     const orderId = `TRIA-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-    const checkoutItems = normalized.map(p => ({
-      external_code: p.id,
-      title: p.name,
-      quantity: p.quantity,
-      currency_id: 'BRL',
-      unit_price: Number((paymentMethod === 'card' ? p.card : p.pix).toFixed(2)).toFixed(2)
-    }));
-    const totalAmount = checkoutItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
+    const isCard = paymentMethod === 'card';
 
-    if (paymentMethod === 'card') {
+    const checkoutItems = normalized.map(product => {
+      const unitPrice = Number((isCard ? product.card : product.pix).toFixed(2));
+      return {
+        external_code: product.id,
+        title: product.name,
+        quantity: product.quantity,
+        unit_measure: 'unit',
+        currency_id: 'BRL',
+        unit_price: unitPrice.toFixed(2),
+        total_amount: (unitPrice * product.quantity).toFixed(2)
+      };
+    });
+
+    const totalAmount = checkoutItems.reduce(
+      (sum, item) => sum + Number(item.total_amount),
+      0
+    );
+
+    if (isCard) {
       const body = {
         type: 'online',
         total_amount: totalAmount.toFixed(2),
         external_reference: orderId,
         processing_mode: 'manual',
-        capture_mode: 'automatic_async',
-        payer: customer?.email ? { email: String(customer.email).trim() } : undefined,
+        capture_mode: 'automatic',
+        payer: customer?.email
+          ? { email: String(customer.email).trim() }
+          : undefined,
         config: {
           online: {
             success_url: `${siteUrl}/#/pagamento/sucesso`,
@@ -82,107 +148,86 @@ module.exports = async function handler(req, res) {
         items: checkoutItems
       };
 
-      const response = await fetch('https://api.mercadopago.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Idempotency-Key': crypto.randomUUID()
-        },
-        body: JSON.stringify(body)
-      });
-
-      const raw = await response.text();
-      let data = {};
-      try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { raw }; }
+      const { response, data, raw } = await callMercadoPago(token, body);
 
       if (!response.ok || !data.checkout_url) {
-        console.error('Mercado Pago Orders API:', response.status, raw);
-        const detail = data?.message || data?.error || data?.cause || data?.details || data?.raw || `HTTP ${response.status}`;
+        console.error('Mercado Pago CARD Orders API:', response.status, raw);
         return send(res, 502, {
-          error: 'O Mercado Pago não conseguiu criar o checkout.',
-          details: typeof detail === 'string' ? detail : JSON.stringify(detail)
+          error: 'O Mercado Pago não conseguiu criar o pagamento no cartão.',
+          details: mpError(data, raw, response.status)
         });
       }
 
       return send(res, 200, {
         orderId,
-        preferenceId: data.id,
+        orderType: 'card',
+        orderIdMercadoPago: data.id,
+        checkoutUrl: data.checkout_url,
         init_point: data.checkout_url
       });
     }
 
-    if (paymentMethod === 'pix') {
-      const body = {
-        type: 'online',
-        total_amount: totalAmount.toFixed(2),
-        external_reference: orderId,
-        processing_mode: 'automatic',
-        transactions: {
-          payments: [{
-            amount: totalAmount.toFixed(2),
-            payment_method: {
-              id: 'pix',
-              type: 'bank_transfer'
-            },
-            expiration_time: 'P1D'
-          }]
-        },
-        payer: {
-          email: String(customer?.email || '').trim()
-        }
-      };
-
-      if (!body.payer.email) {
-        return send(res, 400, { error: 'E-mail do comprador é obrigatório para gerar o Pix.' });
+    const pixBody = {
+      type: 'online',
+      total_amount: totalAmount.toFixed(2),
+      external_reference: orderId,
+      processing_mode: 'automatic',
+      transactions: {
+        payments: [{
+          amount: totalAmount.toFixed(2),
+          payment_method: {
+            id: 'pix',
+            type: 'bank_transfer'
+          },
+          expiration_time: 'P1D'
+        }]
+      },
+      payer: {
+        email: String(customer?.email || '').trim()
       }
+    };
 
-      const response = await fetch('https://api.mercadopago.com/v1/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-          'X-Idempotency-Key': crypto.randomUUID()
-        },
-        body: JSON.stringify(body)
+    if (!pixBody.payer.email) {
+      return send(res, 400, {
+        error: 'E-mail do comprador é obrigatório para gerar o Pix.'
       });
+    }
 
-      const raw = await response.text();
-      let data = {};
-      try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { raw }; }
+    const { response, data, raw } = await callMercadoPago(token, pixBody);
+    const payment = data?.transactions?.payments?.[0];
+    const method = payment?.payment_method;
 
-      const payment = data?.transactions?.payments?.[0];
-      const method = payment?.payment_method;
+    if (!response.ok || !payment) {
+      console.error('Mercado Pago PIX Orders API:', response.status, raw);
+      return send(res, 502, {
+        error: 'O Mercado Pago não conseguiu gerar o Pix.',
+        details: mpError(data, raw, response.status)
+      });
+    }
 
-      if (!response.ok || !method?.qr_code || !method?.qr_code_base64) {
-        console.error('Mercado Pago PIX Orders API:', response.status, raw);
-        const detail = data?.message || data?.error || data?.cause || data?.details || data?.raw || `HTTP ${response.status}`;
-        return send(res, 502, {
-          error: 'O Mercado Pago não conseguiu gerar o Pix.',
-          details: typeof detail === 'string' ? detail : JSON.stringify(detail)
-        });
-      }
-
-      return send(res, 200, {
-        orderId,
-        orderType: 'pix',
-        paymentId: payment.id,
-        status: payment.status,
-        qrCode: method.qr_code,
-        qrCodeBase64: method.qr_code_base64,
-        ticketUrl: method.ticket_url || null
+    if (!method?.qr_code && !method?.ticket_url) {
+      console.error('Mercado Pago PIX sem dados de pagamento:', raw);
+      return send(res, 502, {
+        error: 'O Mercado Pago criou o Pix, mas não devolveu os dados para pagamento.',
+        details: 'A order foi criada sem QR Code ou link de pagamento.'
       });
     }
 
     return send(res, 200, {
       orderId,
-      preferenceId: data.id,
-      init_point: data.init_point
+      orderType: 'pix',
+      orderIdMercadoPago: data.id,
+      paymentId: payment.id,
+      status: payment.status,
+      statusDetail: payment.status_detail,
+      qrCode: method.qr_code || null,
+      qrCodeBase64: method.qr_code_base64 || null,
+      ticketUrl: method.ticket_url || null
     });
   } catch (error) {
     console.error('create-preference:', error);
     return send(res, 500, {
-      error: 'Não foi possível criar o checkout do Mercado Pago.',
+      error: 'Não foi possível criar o pagamento do Mercado Pago.',
       details: error?.message || String(error)
     });
   }

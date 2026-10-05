@@ -87,7 +87,8 @@ module.exports = async function handler(req, res) {
           title: p.name,
           quantity: p.quantity,
           unit_price: unit.toFixed(2),
-          unit_measure: 'un'
+          unit_measure: 'unit',
+          total_amount: (unit * p.quantity).toFixed(2)
         };
       })
     };

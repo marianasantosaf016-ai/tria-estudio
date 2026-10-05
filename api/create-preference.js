@@ -185,7 +185,7 @@ module.exports = async function handler(req, res) {
           installments: {
             interest_free: {
               type: 'range',
-              values: [1, 3]
+              values: [2, 3]
             }
           }
         }

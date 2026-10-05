@@ -167,52 +167,64 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const pixBody = {
-      type: 'online',
-      total_amount: totalAmount.toFixed(2),
-      external_reference: orderId,
-      processing_mode: 'automatic',
-      transactions: {
-        payments: [{
-          amount: totalAmount.toFixed(2),
-          payment_method: {
-            id: 'pix',
-            type: 'bank_transfer'
-          },
-          expiration_time: 'P1D'
-        }]
-      },
+    // Para Pix, usamos o endpoint de pagamentos do Mercado Pago.
+    // Ele é o fluxo documentado para gerar QR Code / Pix Copia e Cola
+    // diretamente a partir do Access Token da conta de produção.
+    const pixPaymentBody = {
+      transaction_amount: Number(totalAmount.toFixed(2)),
+      description: normalized.map(p => `${p.name} x${p.quantity}`).join(', '),
+      payment_method_id: 'pix',
       payer: {
         email: String(customer?.email || '').trim()
-      }
+      },
+      external_reference: orderId
     };
 
-    if (!pixBody.payer.email) {
+    if (!pixPaymentBody.payer.email) {
       return send(res, 400, {
         error: 'E-mail do comprador é obrigatório para gerar o Pix.'
       });
     }
 
-    const { response, data, raw } = await callMercadoPago(token, pixBody);
-    const payment = data?.transactions?.payments?.[0];
-    const method = payment?.payment_method;
+    const pixResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'X-Idempotency-Key': crypto.randomUUID()
+      },
+      body: JSON.stringify(pixPaymentBody)
+    });
 
-    if (!response.ok || !payment) {
-      console.error('Mercado Pago PIX Orders API:', response.status, raw);
+    const pixRaw = await pixResponse.text();
+    let pixData = {};
+    try {
+      pixData = pixRaw ? JSON.parse(pixRaw) : {};
+    } catch (_) {
+      pixData = { raw: pixRaw };
+    }
+
+    const transactionData = pixData?.point_of_interaction?.transaction_data;
+
+    if (!pixResponse.ok || !pixData?.id || !transactionData) {
+      console.error('Mercado Pago PIX /v1/payments:', pixResponse.status, pixRaw);
       return send(res, 502, {
         error: 'O Mercado Pago não conseguiu gerar o Pix.',
-        details: mpError(data, raw, response.status)
+        details: mpError(pixData, pixRaw, pixResponse.status)
       });
     }
 
-    if (!method?.qr_code && !method?.ticket_url) {
-      console.error('Mercado Pago PIX sem dados de pagamento:', raw);
-      return send(res, 502, {
-        error: 'O Mercado Pago criou o Pix, mas não devolveu os dados para pagamento.',
-        details: 'A order foi criada sem QR Code ou link de pagamento.'
-      });
-    }
-
+    return send(res, 200, {
+      orderId,
+      orderType: 'pix',
+      orderIdMercadoPago: pixData.id,
+      paymentId: pixData.id,
+      status: pixData.status,
+      statusDetail: pixData.status_detail,
+      qrCode: transactionData.qr_code || null,
+      qrCodeBase64: transactionData.qr_code_base64 || null,
+      ticketUrl: transactionData.ticket_url || null
+    });
     return send(res, 200, {
       orderId,
       orderType: 'pix',

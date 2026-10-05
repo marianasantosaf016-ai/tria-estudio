@@ -163,7 +163,6 @@ module.exports = async function handler(req, res) {
       external_code: item.id,
       title: item.title,
       quantity: item.quantity,
-      currency_id: 'BRL',
       unit_price: item.unit_price.toFixed(2)
     }));
 

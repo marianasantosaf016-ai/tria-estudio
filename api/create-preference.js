@@ -11,15 +11,12 @@ const PRODUCTS = {
   'kit-coador': { name: 'Kit Coador', pix: 110, card: 120 }
 };
 
-function send(res, status, body) {
-  res.status(status).json(body);
-}
+function send(res, status, body) { return res.status(status).json(body); }
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
-  if (!process.env.MERCADOPAGO_ACCESS_TOKEN) {
-    return send(res, 500, { error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no ambiente.' });
-  }
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+  if (!token) return send(res, 500, { error: 'MERCADOPAGO_ACCESS_TOKEN não configurado no ambiente.' });
 
   try {
     const { items, paymentMethod, customer } = req.body || {};
@@ -29,111 +26,52 @@ module.exports = async function handler(req, res) {
     const normalized = items.map(item => {
       const p = PRODUCTS[item.id];
       const quantity = Number(item.quantity);
-      if (!p || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
-        throw new Error('Produto ou quantidade inválida.');
-      }
+      if (!p || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) throw new Error('Produto ou quantidade inválida.');
       return { ...p, id: item.id, quantity };
     });
 
-    const orderId = `TRIA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
-    const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host || '';
-    const forwardedProto = req.headers['x-forwarded-proto'] || 'https';
-    const fallbackSiteUrl = forwardedHost ? `${forwardedProto}://${forwardedHost}` : '';
-    const siteUrl = (process.env.SITE_URL || fallbackSiteUrl).replace(/\/$/, '');
+    const siteUrl = (process.env.SITE_URL || `https://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/$/, '');
+    if (!/^https:\/\//i.test(siteUrl)) return send(res, 500, { error: 'Não foi possível identificar a URL pública do site.' });
 
-    if (!siteUrl || !/^https:\/\//i.test(siteUrl)) {
-      return send(res, 500, { error: 'Não foi possível identificar a URL pública do site.' });
-    }
-
-    const total = normalized.reduce((sum, p) => {
-      const unit = paymentMethod === 'card' ? p.card : p.pix;
-      return sum + unit * p.quantity;
-    }, 0);
-
-    // Checkout Pro Orders API.
-    // For card payments, seller assumes installment financing cost so the
-    // customer's total remains the catalog card price in 1x, 2x or 3x.
-    const paymentMethodConfig = {
-      max_installments: 3,
-      not_allowed_types: ['ticket']
-    };
-
-    if (paymentMethod === 'card') {
-      paymentMethodConfig.default_type = 'credit_card';
-      paymentMethodConfig.installments_cost = 'seller';
-      paymentMethodConfig.installments = {
-        interest_free: {
-          type: 'range',
-          values: [2, 3]
-        },
-      };
-    }
-
+    const orderId = `TRIA-${Date.now()}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     const body = {
-      type: 'online',
-      processing_mode: 'manual',
-      capture_mode: 'automatic_async',
-      total_amount: total.toFixed(2),
-      external_reference: orderId,
-      expiration_time: 'P1D',
-      payer: customer?.email ? { email: String(customer.email).trim() } : undefined,
-      config: {
-        online: {
-          success_url: `${siteUrl}/#/pagamento/sucesso`,
-          pending_url: `${siteUrl}/#/pagamento/pendente`,
-          failure_url: `${siteUrl}/#/pagamento/falhou`,
-          auto_return: 'approved'
-        },
-        payment_method: paymentMethodConfig
-      },
       items: normalized.map(p => {
-        const unit = paymentMethod === 'card' ? p.card : p.pix;
-        return {
-          external_code: p.id,
-          title: p.name,
-          quantity: p.quantity,
-          unit_price: unit.toFixed(2)
-        };
-      })
+        const unit = Number((paymentMethod === 'card' ? p.card : p.pix).toFixed(2));
+        return { id: p.id, title: p.name, quantity: p.quantity, currency_id: 'BRL', unit_price: unit };
+      }),
+      payer: customer?.email ? { email: String(customer.email).trim() } : undefined,
+      payment_methods: {
+        installments: 3,
+        excluded_payment_types: [{ id: 'ticket' }]
+      },
+      back_urls: {
+        success: `${siteUrl}/#/pagamento/sucesso`,
+        pending: `${siteUrl}/#/pagamento/pendente`,
+        failure: `${siteUrl}/#/pagamento/falhou`
+      },
+      auto_return: 'approved',
+      notification_url: `${siteUrl}/api/webhook`,
+      external_reference: orderId
     };
 
-    const response = await fetch('https://api.mercadopago.com/v1/orders', {
+    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}`,
-        'X-Idempotency-Key': crypto.randomUUID()
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(body)
     });
 
     const raw = await response.text();
     let data = {};
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch (_) {
-      data = { raw };
-    }
-
-    if (!response.ok || !data.checkout_url) {
-      console.error('Mercado Pago Orders API:', response.status, raw);
+    try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { raw }; }
+    if (!response.ok || !data.init_point) {
+      console.error('Mercado Pago Preferences API:', response.status, raw);
       const detail = data?.message || data?.error || data?.cause || data?.details || data?.raw || `HTTP ${response.status}`;
-      return send(res, 502, {
-        error: 'O Mercado Pago não conseguiu criar o checkout.',
-        details: typeof detail === 'string' ? detail : JSON.stringify(detail)
-      });
+      return send(res, 502, { error: 'O Mercado Pago não conseguiu criar o checkout.', details: typeof detail === 'string' ? detail : JSON.stringify(detail) });
     }
 
-    return send(res, 200, {
-      orderId,
-      preferenceId: data.id,
-      init_point: data.checkout_url
-    });
+    return send(res, 200, { orderId, preferenceId: data.id, init_point: data.init_point });
   } catch (error) {
     console.error('create-preference:', error);
-    return send(res, 500, {
-      error: 'Não foi possível criar o checkout do Mercado Pago.',
-      details: error?.message || String(error)
-    });
+    return send(res, 500, { error: 'Não foi possível criar o checkout do Mercado Pago.', details: error?.message || String(error) });
   }
 };

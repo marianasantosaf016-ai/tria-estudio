@@ -87,6 +87,20 @@ module.exports = async function handler(req, res) {
       unit_price: Number((paymentMethod === 'card' ? p.card : p.pix).toFixed(2))
     }));
 
+    const shippingAddress = {
+      street: String(customer?.address?.street || '').trim(),
+      number: String(customer?.address?.number || '').trim(),
+      complement: String(customer?.address?.complement || '').trim(),
+      zipCode: String(customer?.address?.zipCode || '').replace(/\D/g, ''),
+      city: String(customer?.address?.city || '').trim(),
+      state: String(customer?.address?.state || '').trim().toUpperCase()
+    };
+
+    if (!shippingAddress.street || !shippingAddress.number || !shippingAddress.zipCode ||
+        !shippingAddress.city || !shippingAddress.state) {
+      return send(res, 400, { error: 'Endereço de entrega incompleto.' });
+    }
+
     const payer = customer?.email
       ? {
           email: String(customer.email).trim(),
@@ -95,7 +109,12 @@ module.exports = async function handler(req, res) {
               type: 'CPF',
               number: String(customer.cpf).replace(/\D/g, '')
             }
-          } : {})
+          } : {}),
+          address: {
+            zip_code: shippingAddress.zipCode,
+            street_name: shippingAddress.street,
+            street_number: shippingAddress.number
+          }
         }
       : undefined;
 
@@ -113,7 +132,15 @@ module.exports = async function handler(req, res) {
               type: 'CPF',
               number: String(customer.cpf).replace(/\D/g, '')
             }
-          } : {})
+          } : {}),
+          address: {
+            zip_code: shippingAddress.zipCode,
+            street_name: shippingAddress.street,
+            street_number: shippingAddress.number
+          }
+        },
+        metadata: {
+          shipping_address: JSON.stringify(shippingAddress)
         },
         notification_url: `${siteUrl}/api/webhook`
       };
@@ -170,7 +197,17 @@ module.exports = async function handler(req, res) {
       },
       auto_return: 'approved',
       notification_url: `${siteUrl}/api/webhook`,
-      external_reference: orderId
+      external_reference: orderId,
+      shipments: {
+        receiver_address: {
+          zip_code: shippingAddress.zipCode,
+          street_name: shippingAddress.street,
+          street_number: shippingAddress.number,
+          city_name: shippingAddress.city,
+          state_name: shippingAddress.state,
+          ...(shippingAddress.complement ? { apartment: shippingAddress.complement } : {})
+        }
+      }
     };
 
     const response = await fetch('https://api.mercadopago.com/checkout/preferences', {

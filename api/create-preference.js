@@ -44,7 +44,7 @@ module.exports = async function handler(req, res) {
       title: p.name,
       quantity: p.quantity,
       currency_id: 'BRL',
-      unit_price: Number((paymentMethod === 'card' ? p.card : p.pix).toFixed(2))
+      unit_price: Number((paymentMethod === 'card' ? p.card : p.pix).toFixed(2)).toFixed(2)
     }));
     const totalAmount = checkoutItems.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
 

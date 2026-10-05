@@ -112,42 +112,65 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const body = {
-      items: checkoutItems,
-      payer: customer?.email ? { email: String(customer.email).trim() } : undefined,
-      payment_methods: {
-        installments: 1,
-        excluded_payment_types: [{ id: 'ticket' }]
-      },
-      back_urls: {
-        success: `${siteUrl}/#/pagamento/sucesso`,
-        pending: `${siteUrl}/#/pagamento/pendente`,
-        failure: `${siteUrl}/#/pagamento/falhou`
-      },
-      auto_return: 'approved',
-      notification_url: `${siteUrl}/api/webhook`,
-      external_reference: orderId
-    };
+    if (paymentMethod === 'pix') {
+      const body = {
+        type: 'online',
+        total_amount: totalAmount.toFixed(2),
+        external_reference: orderId,
+        processing_mode: 'automatic',
+        transactions: {
+          payments: [{
+            amount: totalAmount.toFixed(2),
+            payment_method: {
+              id: 'pix',
+              type: 'bank_transfer'
+            },
+            expiration_time: 'P1D'
+          }]
+        },
+        payer: {
+          email: String(customer?.email || '').trim()
+        }
+      };
 
-    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify(body)
-    });
+      if (!body.payer.email) {
+        return send(res, 400, { error: 'E-mail do comprador é obrigatório para gerar o Pix.' });
+      }
 
-    const raw = await response.text();
-    let data = {};
-    try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { raw }; }
+      const response = await fetch('https://api.mercadopago.com/v1/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'X-Idempotency-Key': crypto.randomUUID()
+        },
+        body: JSON.stringify(body)
+      });
 
-    if (!response.ok || !data.init_point) {
-      console.error('Mercado Pago Preferences API:', response.status, raw);
-      const detail = data?.message || data?.error || data?.cause || data?.details || data?.raw || `HTTP ${response.status}`;
-      return send(res, 502, {
-        error: 'O Mercado Pago não conseguiu criar o checkout.',
-        details: typeof detail === 'string' ? detail : JSON.stringify(detail)
+      const raw = await response.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { raw }; }
+
+      const payment = data?.transactions?.payments?.[0];
+      const method = payment?.payment_method;
+
+      if (!response.ok || !method?.qr_code || !method?.qr_code_base64) {
+        console.error('Mercado Pago PIX Orders API:', response.status, raw);
+        const detail = data?.message || data?.error || data?.cause || data?.details || data?.raw || `HTTP ${response.status}`;
+        return send(res, 502, {
+          error: 'O Mercado Pago não conseguiu gerar o Pix.',
+          details: typeof detail === 'string' ? detail : JSON.stringify(detail)
+        });
+      }
+
+      return send(res, 200, {
+        orderId,
+        orderType: 'pix',
+        paymentId: payment.id,
+        status: payment.status,
+        qrCode: method.qr_code,
+        qrCodeBase64: method.qr_code_base64,
+        ticketUrl: method.ticket_url || null
       });
     }
 

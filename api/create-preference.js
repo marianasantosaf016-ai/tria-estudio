@@ -230,8 +230,6 @@ module.exports = async function handler(req, res) {
     }
 
     return send(res, 200, {
-      orderId,
-      orderType: 'checkout',
       orderId: data.id,
       orderType: 'checkout',
       checkoutUrl: data.checkout_url

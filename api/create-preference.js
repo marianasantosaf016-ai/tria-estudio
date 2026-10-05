@@ -29,15 +29,18 @@ module.exports = async function handler(req, res) {
     const normalized = items.map(item => {
       const p = PRODUCTS[item.id];
       const quantity = Number(item.quantity);
-      if (!p || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) throw new Error('Produto ou quantidade inválida.');
+      if (!p || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+        throw new Error('Produto ou quantidade inválida.');
+      }
       return { ...p, id: item.id, quantity };
     });
 
-    const orderId = `TRIA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0,14)}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+    const orderId = `TRIA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
     const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host || '';
     const forwardedProto = req.headers['x-forwarded-proto'] || 'https';
     const fallbackSiteUrl = forwardedHost ? `${forwardedProto}://${forwardedHost}` : '';
     const siteUrl = (process.env.SITE_URL || fallbackSiteUrl).replace(/\/$/, '');
+
     if (!siteUrl || !/^https:\/\//i.test(siteUrl)) {
       return send(res, 500, { error: 'Não foi possível identificar a URL pública do site.' });
     }
@@ -47,9 +50,25 @@ module.exports = async function handler(req, res) {
       return sum + unit * p.quantity;
     }, 0);
 
-    // Checkout Pro via Orders API. Unlike the old Preferences API flow,
-    // Orders lets us explicitly define that the seller assumes installment cost.
-    // This is the setting that makes 2x/3x remain at the same total price.
+    // Checkout Pro Orders API.
+    // For card payments, seller assumes installment financing cost so the
+    // customer's total remains the catalog card price in 1x, 2x or 3x.
+    const paymentMethodConfig = {
+      max_installments: 3,
+      not_allowed_types: ['ticket']
+    };
+
+    if (paymentMethod === 'card') {
+      paymentMethodConfig.default_type = 'credit_card';
+      paymentMethodConfig.installments_cost = 'seller';
+      paymentMethodConfig.installments = {
+        interest_free: {
+          type: 'range',
+          values: [2, 3]
+        },
+      };
+    }
+
     const body = {
       type: 'online',
       processing_mode: 'manual',
@@ -65,20 +84,7 @@ module.exports = async function handler(req, res) {
           failure_url: `${siteUrl}/#/pagamento/falhou`,
           auto_return: 'approved'
         },
-        payment_method: {
-          max_installments: 3,
-          not_allowed_types: ['ticket'],
-          ...(paymentMethod === 'card' ? {
-            default_type: 'credit_card',
-            installments_cost: 'seller',
-            installments: {
-              interest_free: {
-                type: 'range',
-                values: [2, 3]
-              }
-            }
-          } : {})
-        }
+        payment_method: paymentMethodConfig
       },
       items: normalized.map(p => {
         const unit = paymentMethod === 'card' ? p.card : p.pix;
@@ -86,9 +92,7 @@ module.exports = async function handler(req, res) {
           external_code: p.id,
           title: p.name,
           quantity: p.quantity,
-          unit_price: unit.toFixed(2),
-          unit_measure: 'unit',
-          total_amount: (unit * p.quantity).toFixed(2)
+          unit_price: unit.toFixed(2)
         };
       })
     };
@@ -103,20 +107,33 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify(body)
     });
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      data = { raw };
+    }
+
     if (!response.ok || !data.checkout_url) {
-      console.error('Mercado Pago Orders API:', response.status, JSON.stringify(data));
-      return send(res, 502, { error: 'O Mercado Pago não conseguiu criar o checkout.', details: data?.message || data?.error || data?.cause || undefined });
+      console.error('Mercado Pago Orders API:', response.status, raw);
+      const detail = data?.message || data?.error || data?.cause || data?.details || data?.raw || `HTTP ${response.status}`;
+      return send(res, 502, {
+        error: 'O Mercado Pago não conseguiu criar o checkout.',
+        details: typeof detail === 'string' ? detail : JSON.stringify(detail)
+      });
     }
 
     return send(res, 200, {
       orderId,
-      // Keep the frontend contract used by the existing site.
       preferenceId: data.id,
       init_point: data.checkout_url
     });
   } catch (error) {
     console.error('create-preference:', error);
-    return send(res, 500, { error: 'Não foi possível criar o checkout do Mercado Pago.' });
+    return send(res, 500, {
+      error: 'Não foi possível criar o checkout do Mercado Pago.',
+      details: error?.message || String(error)
+    });
   }
 };

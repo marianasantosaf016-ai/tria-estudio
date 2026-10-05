@@ -186,6 +186,7 @@ module.exports = async function handler(req, res) {
           auto_return: 'approved'
         },
         payment_method: {
+          default_type: 'credit_card',
           max_installments: 3,
           installments_cost: 'seller',
           not_allowed_types: ['ticket'],
@@ -193,9 +194,6 @@ module.exports = async function handler(req, res) {
             interest_free: {
               type: 'range',
               values: [1, 3]
-            },
-            available: {
-              type: 'all'
             }
           }
         }

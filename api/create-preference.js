@@ -160,7 +160,7 @@ module.exports = async function handler(req, res) {
       items: checkoutItems,
       payer,
       payment_methods: {
-        installments: 3,
+        installments: paymentMethod === 'card' ? 3 : 1,
         excluded_payment_types: [{ id: 'ticket' }]
       },
       back_urls: {

@@ -93,7 +93,7 @@ module.exports = async function handler(req, res) {
           ...(customer?.cpf ? {
             identification: {
               type: 'CPF',
-              number: String(customer.cpf).replace(/\\D/g, '')
+              number: String(customer.cpf).replace(/\D/g, '')
             }
           } : {})
         }
@@ -111,7 +111,7 @@ module.exports = async function handler(req, res) {
           ...(customer?.cpf ? {
             identification: {
               type: 'CPF',
-              number: String(customer.cpf).replace(/\\D/g, '')
+              number: String(customer.cpf).replace(/\D/g, '')
             }
           } : {})
         },

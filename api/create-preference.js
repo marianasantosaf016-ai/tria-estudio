@@ -178,7 +178,7 @@ module.exports = async function handler(req, res) {
         email: String(customer?.email || '').trim(),
         identification: {
           type: 'CPF',
-          number: String(customer?.cpf || '').replace(/\\D/g, '')
+          number: String(customer?.cpf || '').replace(/\D/g, '')
         }
       },
       external_reference: orderId

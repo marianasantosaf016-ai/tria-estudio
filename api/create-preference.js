@@ -175,7 +175,11 @@ module.exports = async function handler(req, res) {
       description: normalized.map(p => `${p.name} x${p.quantity}`).join(', '),
       payment_method_id: 'pix',
       payer: {
-        email: String(customer?.email || '').trim()
+        email: String(customer?.email || '').trim(),
+        identification: {
+          type: 'CPF',
+          number: String(customer?.cpf || '').replace(/\\D/g, '')
+        }
       },
       external_reference: orderId
     };
@@ -183,6 +187,12 @@ module.exports = async function handler(req, res) {
     if (!pixPaymentBody.payer.email) {
       return send(res, 400, {
         error: 'E-mail do comprador é obrigatório para gerar o Pix.'
+      });
+    }
+
+    if (!pixPaymentBody.payer.identification.number || pixPaymentBody.payer.identification.number.length !== 11) {
+      return send(res, 400, {
+        error: 'CPF do comprador é obrigatório para gerar o Pix.'
       });
     }
 

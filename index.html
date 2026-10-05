@@ -98,33 +98,48 @@ if(!paymentMethod){alert("Selecione PIX ou cartão de crédito.");return}
 const btn=form.querySelector('button[type="submit"]');
 btn.disabled=true;btn.textContent="CRIANDO PAGAMENTO...";
 try{
-const payload={items:cart.map(i=>({id:i.id,quantity:i.q})),paymentMethod,customer:{email:form.querySelector('[name="email"]').value.trim(),name:form.querySelector('[name="name"]').value.trim(),phone:form.querySelector('[name="phone"]').value.trim()}};
-const r=await fetch('/api/create-preference',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+const payload={
+items:cart.map(i=>({id:i.id,quantity:i.q})),
+paymentMethod,
+customer:{
+email:form.querySelector('[name="email"]').value.trim(),
+name:form.querySelector('[name="name"]').value.trim(),
+phone:form.querySelector('[name="phone"]').value.trim()
+}
+};
+const r=await fetch('/api/create-preference',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify(payload)
+});
 const data=await r.json();
 if(!r.ok)throw new Error(data.details ? `${data.error} Detalhe: ${data.details}` : (data.error||'Não foi possível criar o pagamento.'));
-if(data.orderType==="pix"&&data.qrCode){
-localStorage.setItem('tria-pending-order',JSON.stringify({orderId:data.orderId,paymentId:data.paymentId,createdAt:new Date().toISOString()}));
+if(data.orderType==="pix"){
+localStorage.setItem('tria-pending-order',JSON.stringify({
+orderId:data.orderId,
+paymentId:data.paymentId,
+createdAt:new Date().toISOString()
+}));
 const checkout=document.querySelector(".checkout");
-checkout.innerHTML=`<div class="success" style="grid-column:1/-1;text-align:center;padding:35px 0 90px">
-<div class="eyebrow">PAGAMENTO VIA PIX</div>
-<h1 style="font-size:55px;margin:0 0 14px">Escaneie o QR Code</h1>
-<p style="color:var(--muted);line-height:1.8;margin:0 auto 28px;max-width:560px">Abra o aplicativo do seu banco e escaneie o código abaixo. Você também pode copiar o código Pix Copia e Cola.</p>
-<div style="display:flex;flex-direction:column;align-items:center;gap:18px">
-<div style="background:#fff;padding:18px;border:1px solid var(--line);width:min(330px,80vw)"><img src="data:image/png;base64,${data.qrCodeBase64}" alt="QR Code Pix" style="width:100%;height:auto;display:block"></div>
-<div style="width:min(680px,100%);display:flex;gap:10px;align-items:stretch">
-<input id="pixCode" value="${data.qrCode}" readonly style="flex:1;height:52px;border:1px solid var(--line);background:transparent;padding:0 13px;font-size:11px">
-<button class="btn dark" type="button" onclick="navigator.clipboard.writeText(document.getElementById('pixCode').value);this.textContent='CÓDIGO COPIADO ✓'">COPIAR PIX</button>
-</div>
-<p style="font-size:12px;color:var(--muted);margin:4px 0 0">O Pix fica disponível para pagamento por 24 horas.</p>
-<a class="centerlink" href="#/moldes">VOLTAR AO CATÁLOGO</a>
-</div></div>`;
+const qr=data.qrCodeBase64?'<div style="background:#fff;padding:18px;border:1px solid var(--line);width:min(330px,80vw)"><img src="data:image/png;base64,'+data.qrCodeBase64+'" alt="QR Code Pix" style="width:100%;height:auto;display:block"></div>':'';
+const copy=data.qrCode?'<div style="width:min(680px,100%);display:flex;gap:10px;align-items:stretch"><input id="pixCode" value="'+data.qrCode.replace(/"/g,'&quot;')+'" readonly style="flex:1;height:52px;border:1px solid var(--line);background:transparent;padding:0 13px;font-size:11px"><button class="btn dark" type="button" onclick="navigator.clipboard.writeText(document.getElementById(\'pixCode\').value);this.textContent=\'CÓDIGO COPIADO ✓\'">COPIAR PIX</button></div>':'';
+const ticket=data.ticketUrl?'<a class="btn dark" href="'+data.ticketUrl+'" target="_blank" rel="noopener">ABRIR PAGAMENTO PIX →</a>':'';
+checkout.innerHTML='<div class="success" style="grid-column:1/-1;text-align:center;padding:35px 0 90px"><div class="eyebrow">PAGAMENTO VIA PIX</div><h1 style="font-size:55px;margin:0 0 14px">Pix pronto para pagamento</h1><p style="color:var(--muted);line-height:1.8;margin:0 auto 28px;max-width:560px">Pague pelo QR Code ou copie o código Pix Copia e Cola. O pagamento é processado pelo Mercado Pago.</p><div style="display:flex;flex-direction:column;align-items:center;gap:18px">'+qr+copy+ticket+'<p style="font-size:12px;color:var(--muted);margin:4px 0 0">O Pix fica disponível para pagamento por 24 horas.</p><a class="centerlink" href="#/moldes">VOLTAR AO CATÁLOGO</a></div></div>';
 return;
 }
 const checkoutUrl=data.checkoutUrl||data.init_point;
-if(!checkoutUrl)throw new Error('Não foi possível obter o link de pagamento.');
-localStorage.setItem('tria-pending-order',JSON.stringify({orderId:data.orderId,preferenceId:data.preferenceId||null,createdAt:new Date().toISOString()}));
+if(!checkoutUrl)throw new Error('O Mercado Pago não devolveu o link do checkout do cartão.');
+localStorage.setItem('tria-pending-order',JSON.stringify({
+orderId:data.orderId,
+orderIdMercadoPago:data.orderIdMercadoPago||null,
+createdAt:new Date().toISOString()
+}));
 window.location.href=checkoutUrl;
-}catch(err){alert(err.message||'Erro ao iniciar o pagamento.');btn.disabled=false;btn.textContent='CONTINUAR PARA PAGAMENTO →'}
+}catch(err){
+alert(err.message||'Erro ao iniciar o pagamento.');
+btn.disabled=false;
+btn.textContent='CONTINUAR PARA PAGAMENTO →';
+}
 }
 function checkout(){if(!cart.length)return `${header()}<main class="cart"><h1>Carrinho</h1><div class="empty"><p>Seu carrinho está vazio.</p><a class="btn dark" href="#/moldes">VER MOLDES →</a></div></main>${footer()}`;return `${header()}<main class="checkout"><div class="checkoutform"><div class="eyebrow">FINALIZAR PEDIDO</div><h1>Seus dados</h1><form class="form" onsubmit="createMercadoPagoCheckout(event)"><div class="tw"><label>Nome<input name="name" required></label><label>Telefone<input name="phone" required></label></div><label>E-mail<input name="email" type="email" required></label><label>Endereço<input name="address" required></label><div class="three"><label>CEP<input name="cep" required></label><label>Cidade<input name="city" required></label><label>UF<input name="uf" required maxlength="2" style="text-transform:uppercase"></label></div><div style="margin-top:12px"><div class="eyebrow">FORMA DE PAGAMENTO</div><div style="display:grid;gap:10px"><label style="border:1px solid var(--line);padding:16px;cursor:pointer"><input type="radio" name="paymentMethod" value="pix" required style="width:auto;height:auto;margin:0 8px 0 0"> PIX — valor PIX do catálogo</label><label style="border:1px solid var(--line);padding:16px;cursor:pointer"><input type="radio" name="paymentMethod" value="card" style="width:auto;height:auto;margin:0 8px 0 0"> Cartão de crédito — valor de cartão do catálogo, em até 3x</label></div></div><button type="submit" class="btn dark">CONTINUAR PARA PAGAMENTO →</button></form></div><aside class="ordersum"><div class="eyebrow">RESUMO</div>${cart.map(i=>{let p=get(i.id);return `<div class="line"><span>${p.name} × ${i.q}</span><b>${R(p.price*i.q)}</b></div>`}).join("")}<h2>${R(total())}</h2><p>O valor final será definido pela forma de pagamento escolhida, conforme os preços do catálogo.</p></aside></main>${footer()}`}
 function paymentResult(type){const titles={sucesso:'Pagamento recebido',pendente:'Pagamento pendente',falhou:'Pagamento não concluído'};const texts={sucesso:'Recebemos o retorno do Mercado Pago. A confirmação definitiva do pagamento é feita pelo nosso servidor.',pendente:'O pagamento ainda não foi confirmado. Aguarde a atualização do Mercado Pago.',falhou:'O pagamento não foi concluído. Você pode voltar ao carrinho e tentar novamente.'};return `${header()}<main class="success"><div class="eyebrow">MERCADO PAGO</div><h1>${titles[type]}</h1><p>${texts[type]}</p><a class="btn dark" href="#/moldes">VOLTAR AO CATÁLOGO</a></main>${footer()}`}

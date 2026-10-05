@@ -87,8 +87,7 @@ module.exports = async function handler(req, res) {
           title: p.name,
           quantity: p.quantity,
           unit_price: unit.toFixed(2),
-          total_amount: (unit * p.quantity).toFixed(2),
-          currency_id: 'BRL'
+          unit_measure: 'un'
         };
       })
     };
@@ -106,7 +105,7 @@ module.exports = async function handler(req, res) {
     const data = await response.json();
     if (!response.ok || !data.checkout_url) {
       console.error('Mercado Pago Orders API:', response.status, JSON.stringify(data));
-      return send(res, 502, { error: 'O Mercado Pago não conseguiu criar o checkout.', details: data?.message || data?.error || undefined });
+      return send(res, 502, { error: 'O Mercado Pago não conseguiu criar o checkout.', details: data?.message || data?.error || data?.cause || undefined });
     }
 
     return send(res, 200, {

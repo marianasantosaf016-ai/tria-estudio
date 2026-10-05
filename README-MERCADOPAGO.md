@@ -33,3 +33,6 @@ Os preços do catálogo NÃO foram alterados. O checkout cobra o valor de PIX ou
 A integração foi atualizada para a Checkout Pro via Orders API. Para pagamentos com cartão, a order envia `installments_cost: seller`, máximo de 3 parcelas e parcelas sem acréscimo de 2x a 3x. Assim, o total cobrado da cliente permanece o preço de cartão do catálogo; o custo financeiro do parcelamento fica com a vendedora.
 
 A documentação atual do Mercado Pago confirma que a Orders API permite configurar `installments_cost` como `seller` e `installments.interest_free` para o intervalo sem juros.
+
+
+Correção desta versão: a Orders API exige `items[].unit_measure` e não aceita mais `items[].currency_id` nem `items[].total_amount`; esses campos foram ajustados para o formato atual da API.

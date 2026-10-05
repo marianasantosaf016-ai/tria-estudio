@@ -131,7 +131,9 @@ module.exports = async function handler(req, res) {
             excluded_payment_types: [
               { id: 'credit_card' },
               { id: 'debit_card' },
-              { id: 'ticket' }
+              { id: 'prepaid_card' },
+              { id: 'ticket' },
+              { id: 'digital_currency' }
             ]
           }
         : {

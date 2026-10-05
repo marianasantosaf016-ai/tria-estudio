@@ -124,10 +124,20 @@ module.exports = async function handler(req, res) {
     const body = {
       items: checkoutItems,
       payer,
-      payment_methods: {
-        installments: paymentMethod === 'card' ? 3 : 1,
-        excluded_payment_types: [{ id: 'ticket' }]
-      },
+      payment_methods: paymentMethod === 'pix'
+        ? {
+            installments: 1,
+            default_payment_method_id: 'pix',
+            excluded_payment_types: [
+              { id: 'credit_card' },
+              { id: 'debit_card' },
+              { id: 'ticket' }
+            ]
+          }
+        : {
+            installments: 3,
+            excluded_payment_types: [{ id: 'ticket' }]
+          },
       back_urls: {
         success: `${siteUrl}/#/pagamento/sucesso`,
         pending: `${siteUrl}/#/pagamento/pendente`,

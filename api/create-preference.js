@@ -156,83 +156,62 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Cartão: Checkout Pro via Orders API, com parcelamento sem juros
-    // assumido pelo vendedor. O total_amount permanece exatamente igual
-    // ao valor dos produtos; o cliente apenas divide esse mesmo total.
-    const orderItems = checkoutItems.map(item => ({
-      external_code: item.id,
-      title: item.title,
-      quantity: item.quantity,
-      unit_price: item.unit_price.toFixed(2)
-    }));
-
-    const totalAmount = orderItems.reduce(
-      (sum, item) => sum + (Number(item.unit_price) * item.quantity),
-      0
-    );
-
-    const orderBody = {
-      type: 'online',
-      total_amount: totalAmount.toFixed(2),
-      external_reference: orderId,
-      processing_mode: 'manual',
-      capture_mode: 'automatic_async',
+    const body = {
+      items: checkoutItems,
       payer,
-      config: {
-        online: {
-          success_url: siteUrl + '/#/pagamento/sucesso',
-          failure_url: siteUrl + '/#/pagamento/falhou',
-          pending_url: siteUrl + '/#/pagamento/pendente',
-          auto_return: 'approved'
-        },
-        payment_method: {
-          default_type: 'credit_card',
-          max_installments: 3,
-          installments_cost: 'seller',
-          not_allowed_types: ['ticket'],
-          installments: {
-            interest_free: {
-              type: 'range',
-              values: [1, 3]
-            }
-          }
-        }
+      payment_methods: {
+        installments: paymentMethod === 'card' ? 3 : 1,
+        excluded_payment_types: [{ id: 'ticket' }]
       },
-      items: orderItems
+      back_urls: {
+        success: `${siteUrl}/#/pagamento/sucesso`,
+        pending: `${siteUrl}/#/pagamento/pendente`,
+        failure: `${siteUrl}/#/pagamento/falhou`
+      },
+      auto_return: 'approved',
+      notification_url: `${siteUrl}/api/webhook`,
+      external_reference: orderId
     };
 
-    const orderResponse = await fetch('https://api.mercadopago.com/v1/orders', {
+    const response = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'X-Idempotency-Key': crypto.randomUUID()
+        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(orderBody)
+      body: JSON.stringify(body)
     });
 
-    const orderRaw = await orderResponse.text();
-    let orderData = {};
+    const raw = await response.text();
+    let data = {};
     try {
-      orderData = orderRaw ? JSON.parse(orderRaw) : {};
+      data = raw ? JSON.parse(raw) : {};
     } catch (_) {
-      orderData = { raw: orderRaw };
+      data = { raw };
     }
 
-    if (!orderResponse.ok || !orderData.checkout_url) {
-      console.error('Mercado Pago Orders API:', orderResponse.status, orderRaw);
+    if (!response.ok || !data.init_point) {
+      console.error('Mercado Pago Preferences API:', response.status, raw);
+      const detail = data?.message ||
+        data?.error ||
+        data?.details ||
+        data?.errors ||
+        data?.cause ||
+        data?.raw ||
+        `HTTP ${response.status}`;
+
       return send(res, 502, {
-        error: 'O Mercado Pago não conseguiu criar o checkout do cartão.',
-        details: mpError(orderData, orderRaw, orderResponse.status)
+        error: 'O Mercado Pago não conseguiu criar o checkout.',
+        details: typeof detail === 'string' ? detail : JSON.stringify(detail)
       });
     }
 
     return send(res, 200, {
       orderId,
-      orderType: 'card',
-      orderIdMercadoPago: orderData.id,
-      checkoutUrl: orderData.checkout_url,
-      init_point: orderData.checkout_url
+      orderType: 'checkout',
+      preferenceId: data.id,
+      init_point: data.init_point,
+      checkoutUrl: data.init_point
     });
   } catch (error) {
     console.error('create-preference:', error);

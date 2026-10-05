@@ -17,11 +17,16 @@ function send(res, status, body) {
 
 function mpError(data, raw, status) {
   const cause = data?.cause;
+  const errors = data?.errors;
   const detail =
     data?.message ||
     data?.error ||
     data?.details ||
-    (Array.isArray(cause) ? cause.map(x => x?.description || x?.code || JSON.stringify(x)).join(' | ') : cause) ||
+    (Array.isArray(errors) ? errors.map(x => {
+      if (typeof x === 'string') return x;
+      return x?.message || x?.description || x?.code || JSON.stringify(x);
+    }).join(' | ') : errors) ||
+    (Array.isArray(cause) ? cause.map(x => x?.description || x?.message || x?.code || JSON.stringify(x)).join(' | ') : cause) ||
     data?.raw ||
     `HTTP ${status}`;
   return typeof detail === 'string' ? detail : JSON.stringify(detail);

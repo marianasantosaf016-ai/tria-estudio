@@ -170,8 +170,7 @@ module.exports = async function handler(req, res) {
       items: checkoutItems.map(item => ({
         title: item.title,
         quantity: item.quantity,
-        unit_price: item.unit_price.toFixed(2),
-        total_amount: (item.unit_price * item.quantity).toFixed(2)
+        unit_price: item.unit_price.toFixed(2)
       })),
       config: {
         online: {
@@ -182,8 +181,6 @@ module.exports = async function handler(req, res) {
         },
         payment_method: {
           max_installments: 3,
-          default_type: 'credit_card',
-          installments_cost: 'seller',
           not_allowed_types: ['ticket'],
           installments: {
             interest_free: {

@@ -2,6 +2,7 @@ const crypto = require('crypto');
 
 const PRODUCTS = {
   'kit1': { name: 'KIT ORGÂNICO 01', pix: 130, card: 150 },
+  'kit-organico-03': { name: 'KIT ORGÂNICO 03', pix: 130, card: 150 },
   'kit2': { name: 'KIT ORGÂNICO 02', pix: 130, card: 150 },
   'kit-circular-01': { name: 'Kit Circular 01', pix: 110, card: 130 },
   'bowl-g': { name: 'Bowl G', pix: 155, card: 170 },
@@ -15,7 +16,6 @@ const PRODUCTS = {
   'prato-risoto': { name: 'Prato de Risoto', pix: 140, card: 150 },
   'kit-copo-xicara-p': { name: 'Kit Copo Xícara P', pix: 100, card: 108 },
   'kit-copo-xicara-m': { name: 'Kit Copo Xícara M', pix: 110, card: 120 },
-  'kit-copo-xicara-g': { name: 'Kit Copo Xícara G', pix: 120, card: 130 },
 };
 
 function send(res, status, body) {

@@ -8,7 +8,13 @@ const PRODUCTS = {
   'bowl-m': { name: 'Bowl M', pix: 145, card: 160 },
   'bowl-p': { name: 'Bowl P', pix: 135, card: 150 },
   'kit-pinheiro-natal': { name: 'Kit Pinheiro de Natal', pix: 120, card: 135 },
-  'kit-coador': { name: 'Kit Coador', pix: 110, card: 120 }
+  'kit-coador': { name: 'Kit Coador', pix: 110, card: 120 },
+  'kit-manteigueira-francesa': { name: 'Kit Manteigueira Francesa', pix: 185, card: 200 },
+  'kit-pizza-sanduba-hotdog': { name: 'Kit Pizza, Sanduba & Hotdog', pix: 155, card: 170 },
+  'kit-ossinhos': { name: 'Kit Ossinhos', pix: 110, card: 125 },
+  'prato-risoto': { name: 'Prato de Risoto', pix: 140, card: 150 },
+  'kit-copo-xicara-p': { name: 'Kit Copo Xícara P', pix: 100, card: 108 },
+  'kit-meia-lua': { name: 'Kit Meia Lua', pix: 170, card: 185 }
 };
 
 function send(res, status, body) {

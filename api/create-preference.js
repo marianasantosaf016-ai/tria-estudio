@@ -15,7 +15,8 @@ const PRODUCTS = {
   'prato-risoto': { name: 'Prato de Risoto', pix: 140, card: 150 },
   'kit-copo-xicara-p': { name: 'Kit Copo Xícara P', pix: 100, card: 108 },
   'kit-meia-lua': { name: 'Kit Meia Lua', pix: 170, card: 185 },
-  'kit-copo-xicara-m': { name: 'Kit Copo Xícara M', pix: 110, card: 120 }
+  'kit-copo-xicara-m': { name: 'Kit Copo Xícara M', pix: 110, card: 120 },
+  'kit-copo-xicara-g': { name: 'Kit Copo Xícara G', pix: 120, card: 130 }
 };
 
 function send(res, status, body) {

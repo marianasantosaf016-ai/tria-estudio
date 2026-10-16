@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Administração — TRÍA ESTÚDIO</title>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+  :root{--paper:#f6f1e9;--paper2:#fffaf4;--brown:#2d211b;--muted:#806e62;--line:#ded4c7;--accent:#a77c60;--red:#ae4949;--green:#456a55}
+  *{box-sizing:border-box} body{margin:0;background:var(--paper);color:var(--brown);font-family:Inter,Arial,sans-serif;font-size:14px} h1,h2,h3{font-family:'Cormorant Garamond',Georgia,serif;font-weight:500;margin:0}a{color:inherit}button,input,textarea,select{font:inherit}button{cursor:pointer}
+  .top{background:#281e19;color:#fffaf3;display:flex;align-items:center;justify-content:space-between;padding:17px clamp(20px,4vw,68px)}.brand{font:500 28px 'Cormorant Garamond',Georgia,serif;letter-spacing:.26em}.brand span{display:block;letter-spacing:.33em;font:10px Inter,sans-serif;margin-top:4px}.top a{font-size:12px;text-decoration:none;opacity:.85}.wrap{max-width:1240px;margin:auto;padding:35px 24px 85px}.eyebrow{color:var(--accent);letter-spacing:.22em;font-size:10px;text-transform:uppercase;font-weight:600}.title{font-size:48px;line-height:1.1;margin:8px 0 10px}.sub{color:var(--muted);line-height:1.7;margin:0 0 26px}.panel{background:var(--paper2);border:1px solid var(--line);border-radius:5px;padding:28px}.auth{max-width:450px;margin:60px auto}.form{display:grid;gap:16px}.form label{display:block;font-size:12px;font-weight:500}.form label span{display:block;margin-bottom:8px}input,textarea,select{width:100%;background:#fffdf9;border:1px solid #d9cdc0;border-radius:3px;padding:13px;color:var(--brown)}textarea{min-height:100px;resize:vertical;line-height:1.5}input:focus,textarea:focus,select:focus{outline:2px solid #cab198;outline-offset:1px}input[type=checkbox]{width:auto}input[type=file]{border:1px dashed #c3b19f;background:transparent}.btn{border:1px solid var(--brown);background:var(--brown);color:white;padding:13px 18px;border-radius:2px;letter-spacing:.04em;font-size:12px;transition:opacity .15s}.btn:hover{opacity:.89}.btn:disabled{opacity:.5;cursor:wait}.btn.ghost{background:transparent;color:var(--brown)}.btn.danger{background:transparent;color:var(--red);border-color:#dcbeb6}.headrow{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tools{display:flex;gap:10px;justify-content:space-between;margin:18px 0 22px;flex-wrap:wrap}.tools input{max-width:400px}.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px}.item{border:1px solid var(--line);background:var(--paper2);overflow:hidden;display:flex;flex-direction:column}.item img{width:100%;aspect-ratio:4/3;object-fit:cover;background:#e4d8c9}.item .data{padding:17px;display:grid;gap:9px;flex:1}.item h3{font-size:25px;line-height:1.05}.tag{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent)}.muted{color:var(--muted);font-size:12px;line-height:1.5}.price{font-size:14px;font-weight:600}.item .btn{margin-top:auto;width:100%}.inactive{filter:grayscale(.9);opacity:.7}.columns{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:22px}.editor-title{font-size:37px;margin:0 0 17px}.fieldrow{display:grid;grid-template-columns:1fr 1fr;gap:14px}.preview{border:1px solid var(--line);aspect-ratio:1;background:#eee1d2;display:grid;place-items:center;color:var(--muted);margin-bottom:16px;overflow:hidden}.preview img{width:100%;height:100%;object-fit:contain}.gallery{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.photo{position:relative}.photo img{width:85px;height:85px;object-fit:cover;border:1px solid var(--line)}.photo button{position:absolute;right:-4px;top:-4px;background:var(--brown);color:white;border:0;width:24px;height:24px;border-radius:50%}.message{border:1px solid var(--line);border-left:3px solid var(--accent);background:#fffdf8;color:var(--brown);padding:12px 15px;margin:14px 0}.message.error{border-left-color:var(--red)}.message.ok{border-left-color:var(--green)}.hidden{display:none!important}.help{font-size:12px;color:var(--muted);line-height:1.5;margin:8px 0 0}.back{border:0;background:transparent;color:var(--muted);padding:0;margin-bottom:15px;text-decoration:underline}.footer{border-top:1px solid var(--line);color:var(--muted);margin-top:45px;padding-top:22px;font-size:11px;line-height:1.7}
+  @media(max-width:760px){.columns{grid-template-columns:1fr}.wrap{padding:30px 16px}.title{font-size:40px}.panel{padding:20px}.auth{margin:20px auto}.fieldrow{grid-template-columns:1fr}.top{padding:16px}.cards{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}.item img{aspect-ratio:1}}
+  </style>
+</head>
+<body>
+<header class="top"><div class="brand">TRÍA <span>ESTÚDIO · ADMINISTRAÇÃO</span></div><a href="/">← VOLTAR À LOJA</a></header>
+<main class="wrap">
+  <section id="loginView" class="panel auth">
+    <div class="eyebrow">Acesso exclusivo das sócias</div><h1 class="title">Seu ateliê digital.</h1>
+    <p class="sub">Entre com o e-mail e a senha cadastrados pela TRÍA para administrar os moldes.</p>
+    <form id="loginForm" class="form">
+      <label><span>E-mail</span><input type="email" name="email" autocomplete="username" required></label>
+      <label><span>Senha</span><input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="btn" type="submit">ENTRAR NO PAINEL →</button>
+    </form>
+    <div id="loginNotice" role="status"></div>
+    <p class="help">O acesso é criado previamente no Supabase. Não existe cadastro público.</p>
+  </section>
+  <section id="dashboard" class="hidden">
+    <div class="headrow"><div><div class="eyebrow">Bem-vinda à administração</div><h1 class="title">Nossos moldes</h1><p class="sub" id="account"></p></div>
+      <div class="toolbar"><button type="button" id="newButton" class="btn">+ CADASTRAR MOLDE</button><button type="button" id="logout" class="btn ghost">SAIR</button></div></div>
+    <div id="listView"><div class="tools"><input id="search" type="search" placeholder="Buscar molde pelo nome ou categoria…" aria-label="Buscar moldes"><span class="muted" id="count"></span></div><div class="cards" id="productGrid"></div></div>
+    <div id="editView" class="hidden">
+      <button type="button" class="back" id="backButton">← Voltar aos moldes</button>
+      <div class="columns"><div class="panel">
+        <div class="eyebrow">Cadastro de produto</div><h2 class="editor-title" id="editorTitle">Novo molde</h2>
+        <form id="productForm" class="form">
+          <label><span>Nome do molde *</span><input name="name" maxlength="100" required placeholder="Ex.: Kit Bandeja Orgânica"></label>
+          <label><span>Categoria *</span><select name="cat" required><option>TIGELAS</option><option>CANECAS & COPOS</option><option>VASOS</option><option>PRATOS & BANDEJAS</option><option>AUTORAIS</option><option>KIDS</option></select></label>
+          <div class="fieldrow"><label><span>Preço no Pix (R$) *</span><input name="price" type="number" step="0.01" min="0.01" required></label><label><span>Preço no cartão (R$) *</span><input name="cardPrice" type="number" step="0.01" min="0.01" required></label></div>
+          <label><span>Descrição para o catálogo *</span><textarea name="desc" maxlength="1200" required></textarea></label>
+          <label><span>Descrição detalhada (opcional)</span><textarea name="details" maxlength="2000"></textarea></label>
+          <label><span>Medidas e características — uma por linha</span><textarea name="spec" placeholder="Diâmetro: 20 cm&#10;Altura: 9 cm&#10;Material: MDF"></textarea></label>
+          <label style="display:flex;gap:10px;align-items:center"><input type="checkbox" name="active" checked><span style="margin:0">Produto disponível na loja</span></label>
+          <div class="toolbar"><button type="submit" class="btn" id="saveButton">SALVAR PRODUTO</button><button type="button" id="archiveButton" class="btn danger hidden">DESATIVAR PRODUTO</button></div>
+        </form><div id="productNotice" role="status"></div>
+      </div><aside class="panel">
+        <div class="eyebrow">Fotografias</div><h2 class="editor-title">A imagem conta.</h2>
+        <div class="preview" id="preview">Prévia do molde</div>
+        <label><span>Adicionar foto (JPG, PNG ou WebP)</span><input type="file" id="photos" accept="image/jpeg,image/png,image/webp" multiple></label>
+        <p class="help">As fotos são otimizadas antes do envio. Selecione até 8 imagens; a primeira será a capa.</p>
+        <div class="gallery" id="photoList"></div><div id="photoNotice" role="status"></div>
+      </aside></div>
+    </div>
+    <p class="footer">TRÍA ESTÚDIO · Área reservada. Alterações salvas ficam disponíveis na vitrine e no pagamento após a confirmação do servidor. Em caso de falha, não tente ajustar valores diretamente no navegador.</p>
+  </section>
+</main>
+<script>
+'use strict';
+const by=id=>document.getElementById(id);const money=x=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(x);
+const escapeHtml=x=>String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let token=sessionStorage.getItem('tria-admin-token')||'',expiresAt=Number(sessionStorage.getItem('tria-admin-exp')||0),account=sessionStorage.getItem('tria-admin-email')||'';
+let products=[],current=null,images=[],uploading=false;
+function notice(where,message,error=false){by(where).innerHTML=message?`<div class="message ${error?'error':'ok'}">${escapeHtml(message)}</div>`:'';}
+function show(id){by('loginView').classList.toggle('hidden',id!=='login');by('dashboard').classList.toggle('hidden',id!=='dashboard');}
+function logout(){token='';expiresAt=0;sessionStorage.removeItem('tria-admin-token');sessionStorage.removeItem('tria-admin-exp');sessionStorage.removeItem('tria-admin-email');show('login');}
+async function api(url,options={}){
+  if(url!=='/api/admin-login'&&(!token||Date.now()>expiresAt)){logout();throw Error('Sessão expirada. Entre novamente.');}
+  const r=await fetch(url,{...options,headers:{'Content-Type':'application/json',...(url!=='/api/admin-login'?{'Authorization':'Bearer '+token}:{}),...options.headers},cache:'no-store'});
+  let data={};try{data=await r.json()}catch(_){}
+  if(r.status===401&&url!=='/api/admin-login'){logout();throw Error(data.error||'Sessão expirada. Entre novamente.');}
+  if(!r.ok)throw Error(data.error||'Não foi possível concluir.');
+  return data;
+}
+async function load(){products=await api('/api/admin-products');by('count').textContent=`${products.length} moldes cadastrados`;draw();}
+function draw(){
+  const term=by('search').value.toLowerCase().trim();
+  const list=products.filter(p=>(p.name+' '+p.cat).toLowerCase().includes(term));
+  by('productGrid').innerHTML=list.length?list.map(p=>`<article class="item ${p.active?'':'inactive'}">
+    ${p.image?`<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" loading="lazy">`:'<div style="aspect-ratio:4/3;display:grid;place-items:center">TRÍA</div>'}
+    <div class="data"><div class="tag">${escapeHtml(p.cat)} ${p.active?'':'· INATIVO'}</div><h3>${escapeHtml(p.name)}</h3><div class="price">${money(p.price)} Pix · ${money(p.cardPrice)} cartão</div>
+    <button class="btn ghost" type="button" data-edit="${escapeHtml(p.id)}">EDITAR MOLDE</button></div></article>`).join(''):'<p class="muted">Nenhum produto encontrado.</p>';
+  for(const btn of document.querySelectorAll('[data-edit]'))btn.addEventListener('click',()=>editor(products.find(p=>p.id===btn.dataset.edit)));
+}
+function editor(product){
+  current=product?.id||null;images=[...(product?.gallery?.length?product.gallery:(product?.image?[product.image]:[]))];
+  by('productForm').reset();let f=by('productForm');
+  for(const field of ['name','cat','price','cardPrice','desc','details']) if(product)f.elements[field].value=product[field]||'';
+  f.elements.spec.value=(product?.spec||[]).join('\n');f.elements.active.checked=product?product.active!==false:true;
+  by('editorTitle').textContent=product?'Editar '+product.name:'Novo molde';
+  by('archiveButton').classList.toggle('hidden',!product||!product.active);
+  by('listView').classList.add('hidden');by('editView').classList.remove('hidden');
+  notice('productNotice','');notice('photoNotice','');by('photos').value='';drawPhotos();window.scrollTo(0,0);
+}
+function closeEditor(){by('editView').classList.add('hidden');by('listView').classList.remove('hidden');current=null;window.scrollTo(0,0);}
+function drawPhotos(){
+  by('preview').innerHTML=images.length?`<img src="${escapeHtml(images[0])}" alt="Foto principal">`:'Prévia do molde';
+  by('photoList').innerHTML=images.map((url,i)=>`<div class="photo"><img src="${escapeHtml(url)}" alt="Imagem ${i+1}"><button type="button" aria-label="Remover foto ${i+1}" data-remove="${i}">×</button></div>`).join('');
+  for(const b of document.querySelectorAll('[data-remove]'))b.addEventListener('click',()=>{images.splice(Number(b.dataset.remove),1);drawPhotos();});
+}
+function optimize(file){
+  return new Promise((resolve,reject)=>{
+    if(!['image/jpeg','image/png','image/webp'].includes(file.type))return reject(Error('Escolha fotografias JPG, PNG ou WebP.'));
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>{try{
+      const scale=Math.min(1,1600/Math.max(img.width,img.height)),canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);canvas.height=Math.round(img.height*scale);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      const uri=canvas.toDataURL('image/jpeg',.82);URL.revokeObjectURL(url);
+      const b64=uri.split(',')[1];if(b64.length>3000000)throw Error('Foto muito grande. Use uma menor.');
+      resolve({mime:'image/jpeg',base64:b64});
+    }catch(e){URL.revokeObjectURL(url);reject(e)};
+    };img.onerror=()=>{URL.revokeObjectURL(url);reject(Error('Não foi possível abrir esta foto.'))};img.src=url;
+  });
+}
+by('loginForm').addEventListener('submit',async e=>{
+  e.preventDefault();const f=e.target,btn=f.querySelector('button');btn.disabled=true;notice('loginNotice','');
+  try{const data=await api('/api/admin-login',{method:'POST',body:JSON.stringify({email:f.elements.email.value,password:f.elements.password.value})});
+    token=data.accessToken;expiresAt=Date.now()+Math.max(60,(data.expiresIn||3600)-60)*1000;account=data.email;
+    sessionStorage.setItem('tria-admin-token',token);sessionStorage.setItem('tria-admin-exp',expiresAt);sessionStorage.setItem('tria-admin-email',account);
+    f.elements.password.value='';show('dashboard');by('account').textContent='Conectada como '+account;await load();
+  }catch(err){notice('loginNotice',err.message,true)}finally{btn.disabled=false}
+});
+by('logout').addEventListener('click',logout);by('newButton').addEventListener('click',()=>editor());by('backButton').addEventListener('click',closeEditor);by('search').addEventListener('input',draw);
+by('photos').addEventListener('change',async e=>{
+  const files=[...e.target.files];if(!files.length)return;
+  if(files.length+images.length>8){notice('photoNotice','No máximo 8 imagens por molde.',true);return;}
+  uploading=true;by('saveButton').disabled=true;notice('photoNotice','Enviando fotografias…');
+  try{for(const file of files){const data=await optimize(file);const uploaded=await api('/api/admin-image',{method:'POST',body:JSON.stringify(data)});images.push(uploaded.url);drawPhotos()};notice('photoNotice','Fotografias enviadas com sucesso.');}
+  catch(err){notice('photoNotice',err.message,true)}finally{uploading=false;by('saveButton').disabled=false;e.target.value='';}
+});
+by('productForm').addEventListener('submit',async e=>{
+  e.preventDefault();if(uploading)return;
+  const form=e.target,btn=by('saveButton');btn.disabled=true;notice('productNotice','');
+  const el=form.elements;
+  const product={name:el.name.value,cat:el.cat.value,price:Number(el.price.value),cardPrice:Number(el.cardPrice.value),
+    desc:el.desc.value,details:el.details.value,spec:el.spec.value.split('\n').map(s=>s.trim()).filter(Boolean),
+    active:el.active.checked,image:images[0]||'',gallery:[...images]};
+  try{
+    const result=await api('/api/admin-products',{method:current?'PUT':'POST',body:JSON.stringify(current?{id:current,product}:{product})});
+    current=result.product.id;notice('productNotice','Produto salvo! Já estará disponível na vitrine assim que o catálogo atualizar.');
+    await load();by('archiveButton').classList.toggle('hidden',!product.active);
+    window.setTimeout(()=>closeEditor(),1300);
+  }catch(err){notice('productNotice',err.message,true)}finally{btn.disabled=false}
+});
+by('archiveButton').addEventListener('click',async()=>{
+  if(!current||!confirm('Desativar este molde? Ele deixará de aparecer na loja e não poderá ser comprado até ser reativado.'))return;
+  try{await api('/api/admin-products',{method:'DELETE',body:JSON.stringify({id:current})});await load();closeEditor();}
+  catch(err){notice('productNotice',err.message,true)}
+});
+if(token && Date.now()<expiresAt){show('dashboard');by('account').textContent='Conectada como '+account;load().catch(err=>{notice('loginNotice',err.message,true);logout()})}
+</script>
+</body>
+</html>

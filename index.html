@@ -73,6 +73,8 @@ const products=[
 ];
 const R=v=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v);
 let cart=JSON.parse(localStorage.getItem("tria-cart")||"[]").filter(i=>products.some(p=>p.id===i.id));
+let shippingQuotes=[];
+let selectedShippingQuote=null;
 const get=id=>products.find(p=>p.id===id);
 function save(){localStorage.setItem("tria-cart",JSON.stringify(cart))}
 function count(){return cart.reduce((a,b)=>a+b.q,0)}
@@ -112,18 +114,44 @@ const p=pages[type];
 return header()+'<main class="info-page"><div class="eyebrow">'+p.eyebrow+'</div><h1>'+p.title+'</h1><div class="info-copy">'+p.content+'</div></main>'+footer();
 }
 function account(){const o=JSON.parse(localStorage.getItem("tria-pending-order")||"null");return header()+'<main class="account"><div class="eyebrow">PEDIDO</div><h1>Acompanhe sua compra</h1><p>O site não exige criação de conta. Se você acabou de iniciar um pagamento, o resumo desta compra fica disponível neste navegador.</p>'+(o?.orderId?'<div class="info-highlight"><b>Pedido '+o.orderId+'</b><p>'+ (o.paymentMethod==="pix"?"Pagamento via Pix.":"Pagamento via cartão.") +'<br>Fabricação em até 7 dias após a confirmação do pagamento.</p></div>':"")+'<a class="btn dark" href="#/moldes">VER MOLDES →</a><a class="centerlink" href="https://wa.me/5566999180955" target="_blank" rel="noopener">FALAR COM A TRÍA NO WHATSAPP</a></main>'+footer()}
+
+async function quoteShipping(){
+const form=document.querySelector(".checkoutform form");
+const cep=form?.querySelector('[name="cep"]')?.value.trim();
+const box=document.getElementById("shippingQuotes");
+const btn=document.getElementById("quoteShippingButton");
+if(!cep){alert("Informe o CEP de entrega para calcular o frete.");return}
+if(!cart.length){alert("Seu carrinho está vazio.");return}
+selectedShippingQuote=null;shippingQuotes=[];box.innerHTML="";
+btn.disabled=true;btn.textContent="CONSULTANDO CORREIOS...";
+try{
+const response=await fetch("/api/shipping-quote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cepDestino:cep,items:cart.map(i=>({id:i.id,quantity:i.q}))})});
+const data=await response.json();
+if(!response.ok)throw new Error(data.error||"Não foi possível calcular o frete.");
+shippingQuotes=Array.isArray(data.quotes)?data.quotes:[];
+if(!shippingQuotes.length)throw new Error("Não há modalidades disponíveis para esse CEP.");
+box.innerHTML='<div class="eyebrow">ESCOLHA A ENTREGA</div>'+shippingQuotes.map((q,i)=>'<label style="display:flex;align-items:center;gap:12px;border:1px solid var(--line);padding:14px;margin-top:8px;cursor:pointer"><input type="radio" name="shippingChoice" data-shipping-index="'+i+'" style="width:auto;height:auto;margin:0"><span style="flex:1"><b>'+q.service+'</b><br><small>Prazo estimado: '+q.deliveryDays+' dias corridos</small></span><b>'+R(q.price)+'</b></label>').join("");
+box.querySelectorAll('[data-shipping-index]').forEach(radio=>radio.addEventListener("change",()=>{
+selectedShippingQuote=shippingQuotes[Number(radio.dataset.shippingIndex)]||null;
+}));
+}catch(error){box.innerHTML='<p style="color:#9b2c2c">'+String(error.message||"Erro ao calcular o frete.").replace(/[<>]/g,"")+'</p>'}
+finally{btn.disabled=false;btn.textContent="CALCULAR FRETE PAC / SEDEX"}
+}
+
 async function createMercadoPagoCheckout(event){
 event.preventDefault();
 if(!cart.length){location.hash="/carrinho";return}
 const form=event.target;
 const paymentMethod=form.querySelector('input[name="paymentMethod"]:checked')?.value;
 if(!paymentMethod){alert("Selecione PIX ou cartão de crédito.");return}
+if(!selectedShippingQuote){alert("Calcule e selecione PAC ou SEDEX antes de continuar.");return}
 const btn=form.querySelector('button[type="submit"]');
 btn.disabled=true;btn.textContent="CRIANDO PAGAMENTO...";
 try{
 const payload={
 items:cart.map(i=>({id:i.id,quantity:i.q})),
 paymentMethod,
+shipping:{quoteToken:selectedShippingQuote.quoteToken},
 customer:{
 email:form.querySelector('[name="email"]').value.trim(),
 name:form.querySelector('[name="name"]').value.trim(),
@@ -181,7 +209,7 @@ btn.disabled=false;
 btn.textContent='CONTINUAR PARA PAGAMENTO →';
 }
 }
-function checkout(){if(!cart.length)return `${header()}<main class="cart"><h1>Carrinho</h1><div class="empty"><p>Seu carrinho está vazio.</p><a class="btn dark" href="#/moldes">VER MOLDES →</a></div></main>${footer()}`;return `${header()}<main class="checkout"><div class="checkoutform"><div class="eyebrow">FINALIZAR PEDIDO</div><h1>Seus dados</h1><form class="form" onsubmit="createMercadoPagoCheckout(event)"><div class="tw"><label>Nome<input name="name" required></label><label>Telefone<input name="phone" required></label></div><label>E-mail<input name="email" type="email" required></label><label>CPF<input name="cpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required></label><div class="tw"><label>Endereço<input name="street" required></label><label>Número<input name="number" required inputmode="numeric"></label></div><label>Complemento <span style="font-weight:normal;color:var(--muted)">(opcional)</span><input name="complement"></label><div class="three"><label>CEP<input name="cep" required autocomplete="postal-code"></label><label>Cidade<input name="city" required></label><label>UF<input name="uf" required maxlength="2" style="text-transform:uppercase"></label></div><div style="margin-top:12px"><div class="eyebrow">FORMA DE PAGAMENTO</div><div style="display:grid;gap:10px"><label style="border:1px solid var(--line);padding:16px;cursor:pointer"><input type="radio" name="paymentMethod" value="pix" required style="width:auto;height:auto;margin:0 8px 0 0"> PIX — valor PIX do catálogo</label><label style="border:1px solid var(--line);padding:16px;cursor:pointer"><input type="radio" name="paymentMethod" value="card" style="width:auto;height:auto;margin:0 8px 0 0"> Cartão de crédito — em até 3x com juros</label></div></div><button type="submit" class="btn dark">CONTINUAR PARA PAGAMENTO →</button></form></div><aside class="ordersum"><div class="eyebrow">RESUMO</div>${cart.map(i=>{let p=get(i.id);return `<div class="line"><span>${p.name} × ${i.q}</span><b>${R(p.price*i.q)}</b></div>`}).join("")}<h2>${R(total())}</h2><p>O valor final será definido pela forma de pagamento escolhida. O cartão pode ter juros de parcelamento.</p><p class="checkout-note">Produção dos moldes: até 7 dias. O frete depende do destino e é organizado após a confirmação do pedido.</p></aside></main>${footer()}`}
+function checkout(){if(!cart.length)return `${header()}<main class="cart"><h1>Carrinho</h1><div class="empty"><p>Seu carrinho está vazio.</p><a class="btn dark" href="#/moldes">VER MOLDES →</a></div></main>${footer()}`;return `${header()}<main class="checkout"><div class="checkoutform"><div class="eyebrow">FINALIZAR PEDIDO</div><h1>Seus dados</h1><form class="form" onsubmit="createMercadoPagoCheckout(event)"><div class="tw"><label>Nome<input name="name" required></label><label>Telefone<input name="phone" required></label></div><label>E-mail<input name="email" type="email" required></label><label>CPF<input name="cpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required></label><div class="tw"><label>Endereço<input name="street" required></label><label>Número<input name="number" required inputmode="numeric"></label></div><label>Complemento <span style="font-weight:normal;color:var(--muted)">(opcional)</span><input name="complement"></label><div class="three"><label>CEP<input name="cep" required autocomplete="postal-code"></label><label>Cidade<input name="city" required></label><label>UF<input name="uf" required maxlength="2" style="text-transform:uppercase"></label></div><button id="quoteShippingButton" type="button" class="btn outline-dark" onclick="quoteShipping()" style="margin-top:12px">CALCULAR FRETE PAC / SEDEX</button><div id="shippingQuotes" style="margin:10px 0 18px"></div><div style="margin-top:12px"><div class="eyebrow">FORMA DE PAGAMENTO</div><div style="display:grid;gap:10px"><label style="border:1px solid var(--line);padding:16px;cursor:pointer"><input type="radio" name="paymentMethod" value="pix" required style="width:auto;height:auto;margin:0 8px 0 0"> PIX — valor PIX do catálogo</label><label style="border:1px solid var(--line);padding:16px;cursor:pointer"><input type="radio" name="paymentMethod" value="card" style="width:auto;height:auto;margin:0 8px 0 0"> Cartão de crédito — em até 3x com juros</label></div></div><button type="submit" class="btn dark">CONTINUAR PARA PAGAMENTO →</button></form></div><aside class="ordersum"><div class="eyebrow">RESUMO</div>${cart.map(i=>{let p=get(i.id);return `<div class="line"><span>${p.name} × ${i.q}</span><b>${R(p.price*i.q)}</b></div>`}).join("")}<h2>${R(total())}</h2><p>O valor final será definido pela forma de pagamento escolhida. O cartão pode ter juros de parcelamento.</p><p class="checkout-note">Produção dos moldes: até 7 dias. Informe seu CEP, calcule PAC/SEDEX e selecione a modalidade antes de pagar.</p></aside></main>${footer()}`}
 function paymentResult(type){
 const titles={sucesso:'Pedido recebido',pendente:'Pagamento pendente',falhou:'Pagamento não concluído'};
 const texts={sucesso:'Seu pedido foi criado e o Mercado Pago informou o retorno desta etapa. A confirmação definitiva do pagamento é feita pelo nosso servidor.',pendente:'Seu pedido foi criado, mas o pagamento ainda não foi confirmado. Aguarde a atualização do Mercado Pago.',falhou:'O pagamento não foi concluído. Você pode voltar ao carrinho e tentar novamente.'};

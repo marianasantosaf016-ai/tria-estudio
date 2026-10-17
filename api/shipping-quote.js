@@ -46,7 +46,7 @@ async function postJson(url, token, body) {
     const messages = Array.isArray(data?.msgs)
       ? data.msgs.map(x => x.mensagem || x.codigo).filter(Boolean).join('; ')
       : '';
-    const error = new Error(messages || data?.message || data?.mensagem || `HTTP ${response.status}`);
+const error = new Error(`${url} — ${messages || data?.message || data?.mensagem || `HTTP ${response.status}`}`);
     error.status = response.status;
     throw error;
   }

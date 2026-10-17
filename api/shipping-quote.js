@@ -14,8 +14,7 @@ const PRODUCTS = {
   'prato-risoto': { name: 'Prato de Risoto', weight: 2548, length: 40, width: 40, height: 15 },
   'kit-copo-xicara-p': { name: 'Kit Copo Xícara P', weight: 420, length: 15, width: 15, height: 15 },
   'kit-copo-xicara-m': { name: 'Kit Copo Xícara M', weight: 524, length: 15, width: 15, height: 15 },
-  'kit-copo-xicara-g': { name: 'Kit Copo Xícara G', weight: 710, length: 15, width: 15, height: 15 },
-  'kit-meia-lua': { name: 'Kit Meia Lua', weight: 5054, length: 45, width: 45, height: 7 }
+  'kit-copo-xicara-g': { name: 'Kit Copo Xícara G', weight: 710, length: 15, width: 15, height: 15 }
 };
 
 const ORIGIN_CEP = '78897070';
@@ -42,13 +41,45 @@ async function postJson(url, token, body) {
   let data;
   try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { message: raw }; }
   if (!response.ok) {
-    const message = data?.msgs?.map(x => x.mensagem || x.codigo).filter(Boolean).join('; ')
-      || data?.message || data?.mensagem || `HTTP ${response.status}`;
-    const error = new Error(message);
+    const messages = Array.isArray(data?.msgs)
+      ? data.msgs.map(x => x.mensagem || x.codigo).filter(Boolean).join('; ')
+      : '';
+    const error = new Error(messages || data?.message || data?.mensagem || `HTTP ${response.status}`);
     error.status = response.status;
     throw error;
   }
   return data;
+}
+
+function rowsFrom(data, possibleKeys) {
+  if (Array.isArray(data)) return data;
+  for (const key of possibleKeys) {
+    if (Array.isArray(data?.[key])) return data[key];
+  }
+  return [];
+}
+
+function parseMoney(value) {
+  if (typeof value === 'number') return value;
+  const text = String(value ?? '').trim();
+  if (!text) return NaN;
+  // Correios may return Brazilian decimal commas.
+  return Number(text.includes(',') ? text.replace(/\./g, '').replace(',', '.') : text);
+}
+
+async function postInChunks(url, token, key, entries, batchSize, prefix) {
+  const output = [];
+  for (let offset = 0; offset < entries.length; offset += batchSize) {
+    const chunk = entries.slice(offset, offset + batchSize);
+    const data = await postJson(url, token, {
+      idLote: `${prefix}-${Math.floor(offset / batchSize) + 1}`,
+      [key]: chunk
+    });
+    output.push(...rowsFrom(data, key === 'parametrosProduto'
+      ? ['precos', 'resultado', 'precostock']
+      : ['prazos', 'resultado']));
+  }
+  return output;
 }
 
 module.exports = async function handler(req, res) {
@@ -58,7 +89,9 @@ module.exports = async function handler(req, res) {
   const contract = process.env.CORREIOS_CONTRACT;
   const dr = process.env.CORREIOS_DR;
   if (!token) return send(res, 503, { error: 'Frete dos Correios ainda não configurado: falta CORREIOS_TOKEN na Vercel.' });
-  if (!contract || !dr) return send(res, 503, { error: 'Frete dos Correios ainda não configurado: confira CORREIOS_CONTRACT e CORREIOS_DR na Vercel.' });
+  if (!contract || !dr || !/^\d+$/.test(String(dr))) {
+    return send(res, 503, { error: 'Frete dos Correios ainda não configurado: confira CORREIOS_CONTRACT e CORREIOS_DR na Vercel.' });
+  }
 
   try {
     const cep = String(req.body?.cepDestino || '').replace(/\D/g, '');
@@ -75,18 +108,18 @@ module.exports = async function handler(req, res) {
       if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
         return send(res, 400, { error: 'Há um produto ou quantidade inválida no carrinho.' });
       }
-      // Cada unidade é enviada em sua própria caixa, conforme as regras da loja.
       for (let i = 0; i < quantity; i++) parcels.push(product);
       if (parcels.length > 50) return send(res, 400, { error: 'O limite de cotação é de 50 caixas por pedido.' });
     }
 
     const priceQueries = [];
     const deadlineQueries = [];
-    parcels.forEach((parcel, index) => {
+    parcels.forEach(parcel => {
       SERVICES.forEach(service => {
+        const sequence = priceQueries.length + 1;
         priceQueries.push({
           coProduto: service.code,
-          nuRequisicao: String(priceQueries.length + 1).padStart(4, '0'),
+          nuRequisicao: String(sequence).padStart(4, '0'),
           nuContrato: contract,
           nuDR: Number(dr),
           cepOrigem: ORIGIN_CEP,
@@ -100,43 +133,36 @@ module.exports = async function handler(req, res) {
         });
         deadlineQueries.push({
           coProduto: service.code,
-          nuRequisicao: String(deadlineQueries.length + 1).padStart(4, '0'),
-          nuContrato: contract,
-          nuDR: Number(dr),
+          nuRequisicao: String(sequence).padStart(4, '0'),
           cepOrigem: ORIGIN_CEP,
           cepDestino: cep
         });
       });
     });
 
-    const [priceData, deadlineData] = await Promise.all([
-      postJson('https://api.correios.com.br/preco/v3/v1/nacional', token, {
-        idLote: 'TRIA-FRETE',
-        parametrosProduto: priceQueries
-      }),
-      postJson('https://api.correios.com.br/prazo/v3/v1/nacional', token, {
-        idLote: 'TRIA-PRAZO',
-        parametrosPrazo: deadlineQueries
-      })
+    const [priceRows, deadlineRows] = await Promise.all([
+      postInChunks('https://api.correios.com.br/preco/v3/v1/nacional', token, 'parametrosProduto', priceQueries, 100, 'TRIA-PRECO'),
+      postInChunks('https://api.correios.com.br/prazo/v3/v1/nacional', token, 'parametrosPrazo', deadlineQueries, 20, 'TRIA-PRAZO')
     ]);
 
-    const priceRows = Array.isArray(priceData) ? priceData : (priceData?.precostock || priceData?.precos || priceData?.resultado || []);
-    const deadlineRows = Array.isArray(deadlineData) ? deadlineData : (deadlineData?.prazos || deadlineData?.resultado || []);
-    const quotes = SERVICES.map((service, serviceIndex) => {
+    const quotes = SERVICES.map(service => {
       let total = 0;
       const days = [];
       let missing = false;
-      parcels.forEach((_, parcelIndex) => {
-        const idx = parcelIndex * SERVICES.length + serviceIndex;
-        const price = priceRows[idx];
-        const deadline = deadlineRows[idx];
-        const rawPrice = price?.pcFinal ?? price?.vlPreco ?? price?.valor ?? price?.preco;
-        const amount = Number(String(rawPrice ?? '').replace(',', '.'));
-        if (!Number.isFinite(amount) || amount <= 0 || price?.txErro || price?.msgErro) missing = true;
-        else total += amount;
+      for (let parcelIndex = 0; parcelIndex < parcels.length; parcelIndex++) {
+        const idx = parcelIndex * SERVICES.length + SERVICES.findIndex(s => s.code === service.code);
+        const price = priceRows.find(row => row?.nuRequisicao === String(idx + 1).padStart(4, '0') && row?.coProduto === service.code) || priceRows[idx];
+        const deadline = deadlineRows.find(row => row?.nuRequisicao === String(idx + 1).padStart(4, '0') && row?.coProduto === service.code) || deadlineRows[idx];
+        const amount = parseMoney(price?.pcFinal ?? price?.vlPreco ?? price?.valor ?? price?.preco);
+        if (!Number.isFinite(amount) || amount <= 0 || price?.txErro || price?.msgErro) {
+          missing = true;
+        } else {
+          total += amount;
+        }
         const dayValue = Number(deadline?.prazoEntrega ?? deadline?.prazo ?? deadline?.nuPrazo);
-        if (Number.isFinite(dayValue) && dayValue > 0) days.push(dayValue);
-      });
+        if (Number.isFinite(dayValue) && dayValue > 0 && !deadline?.txErro) days.push(dayValue);
+        else missing = true;
+      }
       return {
         service: service.name,
         available: !missing && days.length === parcels.length,
@@ -146,7 +172,7 @@ module.exports = async function handler(req, res) {
     }).filter(q => q.available);
 
     if (!quotes.length) return send(res, 422, {
-      error: 'Os Correios não retornaram cotação válida para esse destino. Confira a liberação do contrato e os códigos de serviço.'
+      error: 'Os Correios não retornaram cotação válida para esse destino. Confira a liberação do contrato, o código DR e os serviços PAC/SEDEX.'
     });
     return send(res, 200, { originCep: ORIGIN_CEP, destinationCep: cep, quotes });
   } catch (error) {

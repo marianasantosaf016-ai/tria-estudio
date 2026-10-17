@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 const PRODUCTS = {
   'kit1': { name: 'KIT ORGÂNICO 01', weight: 2014, length: 39.5, width: 24, height: 7 },
   'kit-organico-03': { name: 'KIT ORGÂNICO 03', weight: 1794, length: 40, width: 35, height: 7 },
@@ -174,7 +176,21 @@ module.exports = async function handler(req, res) {
     if (!quotes.length) return send(res, 422, {
       error: 'Os Correios não retornaram cotação válida para esse destino. Confira a liberação do contrato, o código DR e os serviços PAC/SEDEX.'
     });
-    return send(res, 200, { originCep: ORIGIN_CEP, destinationCep: cep, quotes });
+    const quoteSecret = token;
+    const signedQuotes = quotes.map(quote => {
+      const payload = {
+        service: quote.service,
+        price: quote.price,
+        deliveryDays: quote.deliveryDays,
+        destinationCep: cep,
+        items: items.map(item => ({ id: item.id, quantity: Number(item.quantity) })),
+        expiresAt: Date.now() + 15 * 60 * 1000
+      };
+      const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
+      const signature = crypto.createHmac('sha256', quoteSecret).update(encoded).digest('base64url');
+      return { ...quote, quoteToken: `${encoded}.${signature}` };
+    });
+    return send(res, 200, { originCep: ORIGIN_CEP, destinationCep: cep, quotes: signedQuotes });
   } catch (error) {
     console.error('Correios shipping quote:', error);
     return send(res, error.status === 400 ? 400 : 502, {

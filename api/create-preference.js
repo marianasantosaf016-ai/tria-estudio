@@ -76,6 +76,35 @@ module.exports = async function handler(req, res) {
       };
     });
 
+    const shipping = req.body?.shipping;
+    if (!shipping?.quoteToken) {
+      return send(res, 400, { error: 'Calcule e selecione o frete dos Correios antes de pagar.' });
+    }
+    const parts = String(shipping.quoteToken).split('.');
+    if (parts.length !== 2) return send(res, 400, { error: 'Cotação de frete inválida. Calcule novamente.' });
+    const expectedSignature = crypto.createHmac('sha256', process.env.CORREIOS_TOKEN || '').update(parts[0]).digest('base64url');
+    const supplied = Buffer.from(parts[1]);
+    const expected = Buffer.from(expectedSignature);
+    if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {
+      return send(res, 400, { error: 'A cotação de frete não pôde ser validada. Calcule novamente.' });
+    }
+    let shippingQuote;
+    try { shippingQuote = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')); }
+    catch (_) { return send(res, 400, { error: 'Cotação de frete inválida. Calcule novamente.' }); }
+    const destinationCep = String(customer?.address?.zipCode || '').replace(/\D/g, '');
+    const currentItems = items.map(item => ({ id: item.id, quantity: Number(item.quantity) }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const quotedItems = Array.isArray(shippingQuote.items)
+      ? shippingQuote.items.map(item => ({ id: item.id, quantity: Number(item.quantity) })).sort((a, b) => a.id.localeCompare(b.id))
+      : [];
+    if (!Number.isFinite(shippingQuote.price) || shippingQuote.price <= 0 ||
+        !['PAC', 'SEDEX'].includes(shippingQuote.service) ||
+        shippingQuote.expiresAt < Date.now() ||
+        shippingQuote.destinationCep !== destinationCep ||
+        JSON.stringify(currentItems) !== JSON.stringify(quotedItems)) {
+      return send(res, 400, { error: 'A cotação expirou ou não corresponde ao pedido. Calcule o frete novamente.' });
+    }
+
     const siteUrl = (process.env.SITE_URL || `https://${req.headers['x-forwarded-host'] || req.headers.host}`).replace(/\/$/, '');
 
     if (!/^https:\/\//i.test(siteUrl)) {
@@ -127,10 +156,10 @@ module.exports = async function handler(req, res) {
       : undefined;
 
     if (paymentMethod === 'pix') {
-      const total = checkoutItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+      const total = checkoutItems.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0) + shippingQuote.price;
       const pixBody = {
         transaction_amount: Number(total.toFixed(2)),
-        description: checkoutItems.map(item => item.title).join(' + ').slice(0, 250),
+        description: (checkoutItems.map(item => item.title).join(' + ') + ' + Frete ' + shippingQuote.service).slice(0, 250),
         payment_method_id: 'pix',
         external_reference: orderId,
         payer: {
@@ -148,7 +177,9 @@ module.exports = async function handler(req, res) {
           }
         },
         metadata: {
-          shipping_address: JSON.stringify(shippingAddress)
+          shipping_address: JSON.stringify(shippingAddress),
+          shipping_service: shippingQuote.service,
+          shipping_amount: String(shippingQuote.price)
         },
         notification_url: `${siteUrl}/api/webhook`
       };
@@ -192,7 +223,13 @@ module.exports = async function handler(req, res) {
     }
 
     const body = {
-      items: checkoutItems,
+      items: [...checkoutItems, {
+        id: 'frete-correios-' + shippingQuote.service.toLowerCase(),
+        title: 'Frete Correios ' + shippingQuote.service,
+        quantity: 1,
+        currency_id: 'BRL',
+        unit_price: Number(shippingQuote.price.toFixed(2))
+      }],
       payer,
       payment_methods: {
         installments: paymentMethod === 'card' ? 3 : 1,

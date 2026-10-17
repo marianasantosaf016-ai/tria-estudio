@@ -123,6 +123,8 @@ const btn=document.getElementById("quoteShippingButton");
 if(!cep){alert("Informe o CEP de entrega para calcular o frete.");return}
 if(!cart.length){alert("Seu carrinho está vazio.");return}
 selectedShippingQuote=null;shippingQuotes=[];box.innerHTML="";
+const summary=document.getElementById("shippingSummary");if(summary)summary.innerHTML="";
+const totalEl=document.querySelector(".ordersum h2");if(totalEl)totalEl.textContent=R(total());
 btn.disabled=true;btn.textContent="CONSULTANDO CORREIOS...";
 try{
 const response=await fetch("/api/shipping-quote",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({cepDestino:cep,items:cart.map(i=>({id:i.id,quantity:i.q}))})});
@@ -203,7 +205,8 @@ createdAt:new Date().toISOString(),
 paymentMethod,
 customer:payload.customer,
 items:cart.map(i=>{const p=get(i.id);return {id:i.id,name:p.name,quantity:i.q,unitPrice:p.price,image:p.image}}),
-catalogTotal:total()
+catalogTotal:total(),
+shipping:{service:selectedShippingQuote.service,price:selectedShippingQuote.price,deliveryDays:selectedShippingQuote.deliveryDays}
 }));
 window.location.href=checkoutUrl;
 }catch(err){

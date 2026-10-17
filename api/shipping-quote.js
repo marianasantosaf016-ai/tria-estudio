@@ -143,7 +143,7 @@ module.exports = async function handler(req, res) {
     });
 
     const [priceRows, deadlineRows] = await Promise.all([
-      postInChunks('https://api.correios.com.br/preco/v3/v1/nacional', token, 'parametrosProduto', priceQueries, 100, 'TRIA-PRECO'),
+      postInChunks('https://api.correios.com.br/preco/v1/nacional', token, 'parametrosProduto', priceQueries, 100, 'TRIA-PRECO'),
       postInChunks('https://api.correios.com.br/prazo/v3/v1/nacional', token, 'parametrosPrazo', deadlineQueries, 20, 'TRIA-PRAZO')
     ]);
 

@@ -33,7 +33,7 @@ async function postJson(url, token, body) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${token}`,
+     Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json'
     },

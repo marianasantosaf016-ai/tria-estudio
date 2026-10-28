@@ -88,7 +88,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
 
   const token = process.env.CORREIOS_TOKEN;
-  const contract = process.env.CORREIOS_CONTRACT;
+  const contract = process.env.CORREIOS_CONTRATO;
   const dr = process.env.CORREIOS_DR;
   if (!token) return send(res, 503, { error: 'Frete dos Correios ainda não configurado: falta CORREIOS_TOKEN na Vercel.' });
   if (!contract || !dr || !/^\d+$/.test(String(dr))) {

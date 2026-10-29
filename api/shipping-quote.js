@@ -53,6 +53,76 @@ const error = new Error(`${url} — ${messages || data?.message || data?.mensage
   return data;
 }
 
+// Token cache for warm serverless instances. The token endpoint itself also controls token reuse/renewal.
+let cachedCorreiosToken = '';
+let cachedCorreiosTokenExpiresAt = 0;
+
+function tokenExpiry(token) {
+  try {
+    const part = token.split('.')[1];
+    const payload = JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+    return Number(payload.exp || 0) * 1000;
+  } catch (_) {
+    return 0;
+  }
+}
+
+async function getCorreiosToken() {
+  const now = Date.now();
+  if (cachedCorreiosToken && cachedCorreiosTokenExpiresAt > now + 5 * 60 * 1000) {
+    return cachedCorreiosToken;
+  }
+
+  const id = String(process.env.CORREIOS_ID || '').trim();
+  const apiCode = String(process.env.CORREIOS_API_CODE || '').trim();
+  const card = String(process.env.CORREIOS_CARTAO_POSTAGEM || '').trim();
+  const contract = String(process.env.CORREIOS_CONTRACT || process.env.CORREIOS_CONTRATO || '').trim();
+  const dr = String(process.env.CORREIOS_DR || '').trim();
+
+  if (!id || !apiCode || !card || !contract || !/^\\d+$/.test(dr)) {
+    const error = new Error('Faltam variáveis seguras na Vercel: CORREIOS_ID, CORREIOS_API_CODE, CORREIOS_CARTAO_POSTAGEM, CORREIOS_CONTRACT e CORREIOS_DR.');
+    error.status = 503;
+    throw error;
+  }
+
+  const auth = Buffer.from(id + ':' + apiCode).toString('base64');
+  const response = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Basic ' + auth,
+      'Content-Type': 'application/json',
+      Accept: 'application/json'
+    },
+    body: JSON.stringify({
+      numero: card,
+      contrato: contract,
+      dr: Number(dr)
+    })
+  });
+  const raw = await response.text();
+  let data;
+  try { data = raw ? JSON.parse(raw) : {}; } catch (_) { data = { message: raw }; }
+  if (!response.ok) {
+    const messages = Array.isArray(data?.msgs)
+      ? data.msgs.map(x => x.mensagem || x.codigo).filter(Boolean).join('; ')
+      : '';
+    const error = new Error('Falha ao gerar token dos Correios: ' + (messages || data?.message || data?.mensagem || ('HTTP ' + response.status)));
+    error.status = response.status;
+    throw error;
+  }
+
+  const token = String(data?.token || data?.access_token || data?.accessToken || '').trim();
+  if (!token) {
+    const error = new Error('A API Token dos Correios respondeu sem o campo token esperado.');
+    error.status = 502;
+    throw error;
+  }
+
+  cachedCorreiosToken = token;
+  cachedCorreiosTokenExpiresAt = tokenExpiry(token) || (now + 23 * 60 * 60 * 1000);
+  return token;
+}
+
 function rowsFrom(data, possibleKeys) {
   if (Array.isArray(data)) return data;
   for (const key of possibleKeys) {
@@ -87,22 +157,17 @@ async function postInChunks(url, token, key, entries, batchSize, prefix) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
 
- const token = String(process.env.CORREIOS_TOKEN || '').trim();
+ const contract = String(process.env.CORREIOS_CONTRACT || process.env.CORREIOS_CONTRATO || '').trim();
+ const dr = String(process.env.CORREIOS_DR || '').trim();
 
-const contract = String(
-  process.env.CORREIOS_CONTRACT ||
-  process.env.CORREIOS_CONTRATO ||
-  ''
-).trim();
-
-const dr = String(process.env.CORREIOS_DR || '').trim();
-
-console.info('Correios config:', {
-  hasToken: Boolean(token),
-  hasContract: Boolean(contract),
-  hasDr: Boolean(dr),
-  drNumeric: /^\d+$/.test(dr)
-});
+ console.info('Correios config:', {
+   hasId: Boolean(process.env.CORREIOS_ID),
+   hasApiCode: Boolean(process.env.CORREIOS_API_CODE),
+   hasCard: Boolean(process.env.CORREIOS_CARTAO_POSTAGEM),
+   hasContract: Boolean(contract),
+   hasDr: Boolean(dr),
+   drNumeric: /^\d+$/.test(dr)
+ });
   if (!token) return send(res, 503, { error: 'Frete dos Correios ainda não configurado: falta CORREIOS_TOKEN na Vercel.' });
   if (!contract || !dr || !/^\d+$/.test(String(dr))) {
     return send(res, 503, { error: 'Frete dos Correios ainda não configurado: confira CORREIOS_CONTRACT e CORREIOS_DR na Vercel.' });
@@ -155,6 +220,7 @@ console.info('Correios config:', {
       });
     });
 
+    const token = await getCorreiosToken();
     const [priceRows, deadlineRows] = await Promise.all([
       postInChunks('https://api.correios.com.br/preco/v1/nacional', token, 'parametrosProduto', priceQueries, 100, 'TRIA-PRECO'),
       postInChunks('https://api.correios.com.br/prazo/v3/v1/nacional', token, 'parametrosPrazo', deadlineQueries, 20, 'TRIA-PRAZO')

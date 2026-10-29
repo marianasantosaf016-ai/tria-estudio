@@ -168,7 +168,6 @@ module.exports = async function handler(req, res) {
    hasDr: Boolean(dr),
    drNumeric: /^\d+$/.test(dr)
  });
-  if (!token) return send(res, 503, { error: 'Frete dos Correios ainda não configurado: falta CORREIOS_TOKEN na Vercel.' });
   if (!contract || !dr || !/^\d+$/.test(String(dr))) {
     return send(res, 503, { error: 'Frete dos Correios ainda não configurado: confira CORREIOS_CONTRACT e CORREIOS_DR na Vercel.' });
   }

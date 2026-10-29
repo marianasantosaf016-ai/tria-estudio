@@ -87,9 +87,22 @@ async function postInChunks(url, token, key, entries, batchSize, prefix) {
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return send(res, 405, { error: 'Método não permitido.' });
 
-  const token = process.env.CORREIOS_TOKEN;
-  const contract = process.env.CORREIOS_CONTRATO;
-  const dr = process.env.CORREIOS_DR;
+ const token = String(process.env.CORREIOS_TOKEN || '').trim();
+
+const contract = String(
+  process.env.CORREIOS_CONTRACT ||
+  process.env.CORREIOS_CONTRATO ||
+  ''
+).trim();
+
+const dr = String(process.env.CORREIOS_DR || '').trim();
+
+console.info('Correios config:', {
+  hasToken: Boolean(token),
+  hasContract: Boolean(contract),
+  hasDr: Boolean(dr),
+  drNumeric: /^\d+$/.test(dr)
+});
   if (!token) return send(res, 503, { error: 'Frete dos Correios ainda não configurado: falta CORREIOS_TOKEN na Vercel.' });
   if (!contract || !dr || !/^\d+$/.test(String(dr))) {
     return send(res, 503, { error: 'Frete dos Correios ainda não configurado: confira CORREIOS_CONTRACT e CORREIOS_DR na Vercel.' });

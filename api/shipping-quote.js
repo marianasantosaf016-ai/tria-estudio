@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { getCatalog } = require('../lib/catalog');
 
 const PRODUCTS = {
   'kit1': { name: 'KIT ORGÂNICO 01', weight: 2014, length: 39.5, width: 24, height: 7 },
@@ -180,12 +181,21 @@ module.exports = async function handler(req, res) {
       return send(res, 400, { error: 'Informe os produtos do carrinho para calcular o frete.' });
     }
 
+    const catalog = await getCatalog({ includeInactive: true });
+    const catalogById = new Map(catalog.map(product => [product.id, product]));
     const parcels = [];
     for (const item of items) {
-      const product = PRODUCTS[item?.id];
+      const id = String(item?.id || '');
+      const stored = catalogById.get(id);
+      const fallback = PRODUCTS[id];
+      const hasPackage = stored && [stored.weight, stored.length, stored.width, stored.height]
+        .every(value => Number.isFinite(Number(value)) && Number(value) > 0);
+      const product = stored?.active === false ? null : (hasPackage
+        ? { name: stored.name, weight: Number(stored.weight), length: Number(stored.length), width: Number(stored.width), height: Number(stored.height) }
+        : fallback);
       const quantity = Number(item?.quantity);
       if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
-        return send(res, 400, { error: 'Há um produto ou quantidade inválida no carrinho.' });
+        return send(res, 400, { error: 'Produto sem dados de frete válidos ou quantidade inválida. Confira o peso e as medidas da embalagem no painel.' });
       }
       for (let i = 0; i < quantity; i++) parcels.push(product);
       if (parcels.length > 50) return send(res, 400, { error: 'O limite de cotação é de 50 caixas por pedido.' });

@@ -1,23 +1,6 @@
 const crypto = require('crypto');
 
-const PRODUCTS = {
-  'kit1': { name: 'KIT ORGÂNICO 01', pix: 130, card: 150 },
-  'kit-organico-03': { name: 'KIT ORGÂNICO 03', pix: 130, card: 150 },
-  'kit2': { name: 'KIT ORGÂNICO 02', pix: 130, card: 150 },
-  'kit-circular-01': { name: 'Kit Circular 01', pix: 110, card: 130 },
-  'bowl-g': { name: 'Bowl G', pix: 155, card: 170 },
-  'bowl-m': { name: 'Bowl M', pix: 145, card: 160 },
-  'bowl-p': { name: 'Bowl P', pix: 135, card: 150 },
-  'kit-pinheiro-natal': { name: 'Kit Pinheiro de Natal', pix: 120, card: 135 },
-  'kit-coador': { name: 'Kit Coador', pix: 110, card: 120 },
-  'kit-manteigueira-francesa': { name: 'Kit Manteigueira Francesa', pix: 185, card: 200 },
-  'kit-pizza-sanduba-hotdog': { name: 'Kit Pizza, Sanduba & Hotdog', pix: 155, card: 170 },
-  'kit-ossinhos': { name: 'Kit Ossinhos', pix: 110, card: 125 },
-  'prato-risoto': { name: 'Prato de Risoto', pix: 140, card: 150 },
-  'kit-copo-xicara-p': { name: 'Kit Copo Xícara P', pix: 100, card: 108 },
-  'kit-copo-xicara-m': { name: 'Kit Copo Xícara M', pix: 110, card: 120 },
-  'kit-copo-xicara-g': { name: 'Kit Copo Xícara G', pix: 120, card: 130 },
-};
+const { getPaymentCatalog } = require('../lib/catalog');
 
 function send(res, status, body) {
   return res.status(status).json(body);
@@ -53,7 +36,7 @@ module.exports = async function handler(req, res) {
   try {
     const { items, paymentMethod, customer } = req.body || {};
 
-    if (!Array.isArray(items) || !items.length) {
+    if (!Array.isArray(items) || !items.length || items.length > 50) {
       return send(res, 400, { error: 'Carrinho vazio.' });
     }
 
@@ -61,8 +44,9 @@ module.exports = async function handler(req, res) {
       return send(res, 400, { error: 'Forma de pagamento inválida.' });
     }
 
+    const paymentCatalog = await getPaymentCatalog();
     const normalized = items.map(item => {
-      const product = PRODUCTS[item.id];
+      const product = paymentCatalog[item.id];
       const quantity = Number(item.quantity);
 
       if (!product || !Number.isInteger(quantity) || quantity < 1 || quantity > 50) {

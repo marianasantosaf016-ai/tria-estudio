@@ -82,7 +82,9 @@ module.exports = async function handler(req, res) {
     }
     const parts = String(shipping.quoteToken).split('.');
     if (parts.length !== 2) return send(res, 400, { error: 'Cotação de frete inválida. Calcule novamente.' });
-    const expectedSignature = crypto.createHmac('sha256', process.env.CORREIOS_TOKEN || '').update(parts[0]).digest('base64url');
+    const quoteSecret = String(process.env.CORREIOS_API_CODE || '').trim();
+    if (!quoteSecret) return send(res, 503, { error: 'A validação do frete ainda não está configurada.' });
+    const expectedSignature = crypto.createHmac('sha256', quoteSecret).update(parts[0]).digest('base64url');
     const supplied = Buffer.from(parts[1]);
     const expected = Buffer.from(expectedSignature);
     if (supplied.length !== expected.length || !crypto.timingSafeEqual(supplied, expected)) {

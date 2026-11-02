@@ -254,7 +254,7 @@ module.exports = async function handler(req, res) {
     if (!quotes.length) return send(res, 422, {
       error: 'Os Correios não retornaram cotação válida para esse destino. Confira a liberação do contrato, o código DR e os serviços PAC/SEDEX.'
     });
-    const quoteSecret = token;
+    const quoteSecret = String(process.env.CORREIOS_API_CODE || '').trim();
     const signedQuotes = quotes.map(quote => {
       const payload = {
         service: quote.service,

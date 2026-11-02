@@ -79,7 +79,7 @@ async function getCorreiosToken() {
   const contract = String(process.env.CORREIOS_CONTRACT || process.env.CORREIOS_CONTRATO || '').trim();
   const dr = String(process.env.CORREIOS_DR || '').trim();
 
-  if (!id || !apiCode || !card || !contract || !/^\\d+$/.test(dr)) {
+  if (!id || !apiCode || !card || !contract || !/^\d+$/.test(dr)) {
     const error = new Error('Faltam variáveis seguras na Vercel: CORREIOS_ID, CORREIOS_API_CODE, CORREIOS_CARTAO_POSTAGEM, CORREIOS_CONTRACT e CORREIOS_DR.');
     error.status = 503;
     throw error;

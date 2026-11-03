@@ -46,8 +46,10 @@ async function postJson(url, token, body) {
     const messages = Array.isArray(data?.msgs)
       ? data.msgs.map(x => x.mensagem || x.codigo).filter(Boolean).join('; ')
       : '';
-const error = new Error(`${url} — ${messages || data?.message || data?.mensagem || `HTTP ${response.status}`}`);
+const endpoint = (() => { try { return new URL(url).pathname; } catch (_) { return url; } })();
+    const error = new Error(`${url} — ${messages || data?.message || data?.mensagem || `HTTP ${response.status}`}`);
     error.status = response.status;
+    error.correiosDiagnostics = { endpoint, status: response.status, response: data };
     throw error;
   }
   return data;
@@ -108,6 +110,11 @@ async function getCorreiosToken() {
       : '';
     const error = new Error('Falha ao gerar token dos Correios: ' + (messages || data?.message || data?.mensagem || ('HTTP ' + response.status)));
     error.status = response.status;
+    error.correiosDiagnostics = {
+      endpoint: '/token/v1/autentica/cartaopostagem',
+      status: response.status,
+      response: data
+    };
     throw error;
   }
 
@@ -270,7 +277,11 @@ module.exports = async function handler(req, res) {
     });
     return send(res, 200, { originCep: ORIGIN_CEP, destinationCep: cep, quotes: signedQuotes });
   } catch (error) {
-    console.error('Correios shipping quote:', error);
+    console.error('Correios shipping quote:', JSON.stringify({
+      message: error?.message || 'Erro desconhecido',
+      status: error?.status || null,
+      diagnostics: error?.correiosDiagnostics || null
+    }));
     return send(res, error.status === 400 ? 400 : 502, {
       error: 'Não foi possível consultar preço e prazo nos Correios.',
       details: error.message
